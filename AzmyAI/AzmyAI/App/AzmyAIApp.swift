@@ -13,6 +13,7 @@ struct AzmyAIApp: App {
     @StateObject private var userProfile = UserProfileViewModel()
     @StateObject private var chatViewModel = ChatViewModel()
     @StateObject private var plannerViewModel = PlannerViewModel()
+    @StateObject private var quizViewModel = QuizViewModel()
 
     var body: some Scene {
         WindowGroup {
@@ -21,6 +22,7 @@ struct AzmyAIApp: App {
                 .environmentObject(userProfile)
                 .environmentObject(chatViewModel)
                 .environmentObject(plannerViewModel)
+                .environmentObject(quizViewModel)
         }
     }
 }
@@ -42,24 +44,27 @@ class AppState: ObservableObject {
 
 enum TabSelection: Int, CaseIterable {
     case chat = 0
-    case planner = 1
+    case calendar = 1
     case insights = 2
-    case profile = 3
+    case planner = 3
+    case profile = 4
 
     var title: String {
         switch self {
-        case .chat: return "Azmy"
-        case .planner: return "Planner"
+        case .chat: return "Home"
+        case .calendar: return "Calendar"
         case .insights: return "Insights"
+        case .planner: return "Planner"
         case .profile: return "Profile"
         }
     }
 
     var icon: String {
         switch self {
-        case .chat: return "bubble.left.and.bubble.right.fill"
-        case .planner: return "calendar"
-        case .insights: return "chart.line.uptrend.xyaxis"
+        case .chat: return "house.fill"
+        case .calendar: return "calendar"
+        case .insights: return "lightbulb.fill"
+        case .planner: return "clock.fill"
         case .profile: return "person.circle.fill"
         }
     }

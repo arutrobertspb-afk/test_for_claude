@@ -2,7 +2,7 @@
 //  ContentView.swift
 //  AzmyAI
 //
-//  Dark theme app container
+//  Dark theme app container with 5-tab navigation
 //
 
 import SwiftUI
@@ -10,6 +10,9 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var userProfile: UserProfileViewModel
+    @EnvironmentObject var quizViewModel: QuizViewModel
+
+    @State private var showQuiz = false
 
     var body: some View {
         Group {
@@ -23,6 +26,15 @@ struct ContentView: View {
         }
         .animation(.easeInOut(duration: 0.3), value: appState.isOnboardingComplete)
         .preferredColorScheme(.dark)
+        .sheet(isPresented: $showQuiz) {
+            QuizContainerView()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .showQuiz)) { notification in
+            if let quiz = notification.object as? Quiz {
+                quizViewModel.startQuiz(quiz)
+                showQuiz = true
+            }
+        }
     }
 }
 
@@ -42,17 +54,23 @@ struct MainTabView: View {
                     }
                     .tag(TabSelection.chat)
 
-                PlannerView()
+                CalendarView()
                     .tabItem {
-                        Label(TabSelection.planner.title, systemImage: TabSelection.planner.icon)
+                        Label(TabSelection.calendar.title, systemImage: TabSelection.calendar.icon)
                     }
-                    .tag(TabSelection.planner)
+                    .tag(TabSelection.calendar)
 
                 InsightsView()
                     .tabItem {
                         Label(TabSelection.insights.title, systemImage: TabSelection.insights.icon)
                     }
                     .tag(TabSelection.insights)
+
+                PlannerView()
+                    .tabItem {
+                        Label(TabSelection.planner.title, systemImage: TabSelection.planner.icon)
+                    }
+                    .tag(TabSelection.planner)
 
                 ProfileView()
                     .tabItem {
@@ -65,10 +83,16 @@ struct MainTabView: View {
     }
 }
 
+// MARK: - Notification for Quiz
+extension Notification.Name {
+    static let showQuiz = Notification.Name("showQuiz")
+}
+
 #Preview {
     ContentView()
         .environmentObject(AppState())
         .environmentObject(UserProfileViewModel())
         .environmentObject(ChatViewModel())
         .environmentObject(PlannerViewModel())
+        .environmentObject(QuizViewModel())
 }
