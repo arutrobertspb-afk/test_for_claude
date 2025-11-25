@@ -20,6 +20,7 @@ struct ChatView: View {
                 quickPromptsSection
                 inputBarSection
             }
+            .background(Color(UIColor.systemBackground))
             .navigationTitle("Azmy")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

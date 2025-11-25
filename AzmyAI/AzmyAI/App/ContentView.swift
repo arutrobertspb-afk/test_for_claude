@@ -53,7 +53,7 @@ struct MainTabView: View {
                 }
                 .tag(TabSelection.profile)
         }
-        .tint(Color.azuryPrimary)
+        .tint(Color(hex: "4F46E5"))
     }
 }
 
