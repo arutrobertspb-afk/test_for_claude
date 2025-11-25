@@ -122,8 +122,8 @@ class ChatViewModel: ObservableObject {
         isTyping = true
 
         // Update user name in memory if detected
-        if let name = profile.name, !name.isEmpty {
-            memory.updateUserName(name)
+        if !profile.name.isEmpty {
+            memory.updateUserName(profile.name)
         }
 
         // Send to AI using new service
