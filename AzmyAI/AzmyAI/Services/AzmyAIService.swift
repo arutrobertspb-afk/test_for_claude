@@ -258,9 +258,11 @@ class AzmyAIService: ObservableObject {
 
         messages.append(MistralMessage(role: "system", content: systemContent))
 
-        // Add recent conversation history
+        // Add recent conversation history (filter out empty messages)
         for entry in memory.shortTermMemory.suffix(6) {
-            messages.append(MistralMessage(role: entry.role, content: entry.content))
+            if !entry.content.isEmpty {
+                messages.append(MistralMessage(role: entry.role, content: entry.content))
+            }
         }
 
         // Add current user message
