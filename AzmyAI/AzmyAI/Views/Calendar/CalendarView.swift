@@ -32,6 +32,8 @@ struct CalendarView: View {
                 // Header
                 CalendarHeader(
                     title: showWeekView ? dayTitle : monthTitle,
+                    showBackButton: showWeekView,
+                    onBack: { showWeekView = false },
                     onPrevious: previousAction,
                     onNext: nextAction
                 )
@@ -165,18 +167,41 @@ struct CalendarView: View {
 // MARK: - Calendar Header
 struct CalendarHeader: View {
     let title: String
+    let showBackButton: Bool
+    let onBack: (() -> Void)?
     let onPrevious: () -> Void
     let onNext: () -> Void
 
+    init(title: String, showBackButton: Bool = false, onBack: (() -> Void)? = nil, onPrevious: @escaping () -> Void, onNext: @escaping () -> Void) {
+        self.title = title
+        self.showBackButton = showBackButton
+        self.onBack = onBack
+        self.onPrevious = onPrevious
+        self.onNext = onNext
+    }
+
     var body: some View {
         HStack {
-            Button(action: onPrevious) {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.white)
-                    .frame(width: 36, height: 36)
-                    .background(AzmyColors.backgroundCard)
-                    .cornerRadius(10)
+            if showBackButton {
+                Button(action: { onBack?() }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 14, weight: .semibold))
+                        Text("Back")
+                            .font(.system(size: 14, weight: .medium))
+                    }
+                    .foregroundColor(AzmyColors.accentBlue)
+                }
+                .frame(width: 70, alignment: .leading)
+            } else {
+                Button(action: onPrevious) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(width: 36, height: 36)
+                        .background(AzmyColors.backgroundCard)
+                        .cornerRadius(10)
+                }
             }
 
             Spacer()
@@ -187,13 +212,35 @@ struct CalendarHeader: View {
 
             Spacer()
 
-            Button(action: onNext) {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.white)
-                    .frame(width: 36, height: 36)
-                    .background(AzmyColors.backgroundCard)
-                    .cornerRadius(10)
+            if showBackButton {
+                // Navigation arrows for day view
+                HStack(spacing: 8) {
+                    Button(action: onPrevious) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(width: 32, height: 32)
+                            .background(AzmyColors.backgroundCard)
+                            .cornerRadius(8)
+                    }
+                    Button(action: onNext) {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(width: 32, height: 32)
+                            .background(AzmyColors.backgroundCard)
+                            .cornerRadius(8)
+                    }
+                }
+            } else {
+                Button(action: onNext) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(width: 36, height: 36)
+                        .background(AzmyColors.backgroundCard)
+                        .cornerRadius(10)
+                }
             }
         }
         .padding(.horizontal, 16)
