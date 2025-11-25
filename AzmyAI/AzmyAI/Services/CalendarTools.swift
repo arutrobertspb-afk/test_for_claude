@@ -456,9 +456,28 @@ class CalendarToolExecutor {
         event.startDate = startDate
         event.endDate = endDate
 
+        // Debug: list all available calendars
+        let allCalendars = eventStore.calendars(for: .event)
+        print("📅 Available calendars (\(allCalendars.count)):")
+        for cal in allCalendars {
+            print("   - \(cal.title) [source: \(cal.source?.title ?? "unknown")] [type: \(cal.type.rawValue)] [allowsModify: \(cal.allowsContentModifications)]")
+        }
+
         let defaultCalendar = eventStore.defaultCalendarForNewEvents
-        print("📅 Default calendar: \(defaultCalendar?.title ?? "nil")")
-        event.calendar = defaultCalendar
+        print("📅 Default calendar: \(defaultCalendar?.title ?? "⚠️ NIL - NO DEFAULT CALENDAR")")
+
+        if defaultCalendar == nil {
+            // Try to find a writable calendar
+            if let writableCalendar = allCalendars.first(where: { $0.allowsContentModifications }) {
+                print("📅 Using fallback writable calendar: \(writableCalendar.title)")
+                event.calendar = writableCalendar
+            } else {
+                print("❌ No writable calendar found!")
+                return "No writable calendar available. Please add a calendar account in Settings."
+            }
+        } else {
+            event.calendar = defaultCalendar
+        }
 
         if let location = args["location"] as? String {
             event.location = location
@@ -470,17 +489,30 @@ class CalendarToolExecutor {
             print("📅 Notes: \(notes)")
         }
 
+        print("📅 About to save event:")
+        print("   Title: \(event.title ?? "nil")")
+        print("   Start: \(event.startDate?.description ?? "nil")")
+        print("   End: \(event.endDate?.description ?? "nil")")
+        print("   Calendar: \(event.calendar?.title ?? "nil")")
+
         do {
-            try eventStore.save(event, span: .thisEvent)
+            try eventStore.save(event, span: .thisEvent, commit: true)
             let timeFormatter = DateFormatter()
             timeFormatter.dateFormat = "MMM d, HH:mm"
             let successMsg = "✅ Event created: \"\(title)\" on \(timeFormatter.string(from: startDate))"
             print(successMsg)
             print("📅 Event ID: \(event.eventIdentifier ?? "no-id")")
+
+            // Notify UI to refresh
+            await MainActor.run {
+                NotificationCenter.default.post(name: Notification.Name("calendarEventsDidChange"), object: nil)
+            }
+
             return successMsg
         } catch {
             let errorMsg = "Failed to create event: \(error.localizedDescription)"
             print("❌ \(errorMsg)")
+            print("❌ Full error: \(error)")
             return errorMsg
         }
     }

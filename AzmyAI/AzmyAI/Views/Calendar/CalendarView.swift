@@ -8,6 +8,11 @@
 import SwiftUI
 import EventKit
 
+// MARK: - Notification for calendar updates
+extension Notification.Name {
+    static let calendarEventsDidChange = Notification.Name("calendarEventsDidChange")
+}
+
 struct CalendarView: View {
     @EnvironmentObject var plannerViewModel: PlannerViewModel
     @EnvironmentObject var userProfile: UserProfileViewModel
@@ -97,6 +102,11 @@ struct CalendarView: View {
             }
         }
         .onAppear {
+            Task {
+                await plannerViewModel.fetchEventsForSelectedDate()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .calendarEventsDidChange)) { _ in
             Task {
                 await plannerViewModel.fetchEventsForSelectedDate()
             }
