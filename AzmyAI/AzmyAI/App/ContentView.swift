@@ -30,7 +30,7 @@ struct ContentView: View {
             QuizContainerView()
         }
         .onReceive(NotificationCenter.default.publisher(for: .showQuiz)) { notification in
-            if let quiz = notification.object as? Quiz {
+            if let quiz = notification.object as? AzmyQuiz {
                 quizViewModel.startQuiz(quiz)
                 showQuiz = true
             }

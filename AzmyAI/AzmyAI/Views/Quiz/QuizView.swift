@@ -690,7 +690,7 @@ struct TraitRow: View {
 
 // MARK: - Quiz Prompt Card (for Chat)
 struct QuizPromptCard: View {
-    let quiz: Quiz
+    let quiz: AzmyQuiz
     let onStart: () -> Void
 
     var body: some View {

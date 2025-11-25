@@ -10,8 +10,8 @@ import SwiftUI
 import Combine
 
 class QuizViewModel: ObservableObject {
-    @Published var availableQuizzes: [Quiz] = Quiz.allQuizzes
-    @Published var currentQuiz: Quiz?
+    @Published var availableQuizzes: [AzmyQuiz] = AzmyQuiz.allQuizzes
+    @Published var currentQuiz: AzmyQuiz?
     @Published var currentQuestionIndex: Int = 0
     @Published var isQuizActive: Bool = false
     @Published var isShowingResult: Bool = false
@@ -47,7 +47,7 @@ class QuizViewModel: ObservableObject {
     }
 
     // MARK: - Quiz Control
-    func startQuiz(_ quiz: Quiz) {
+    func startQuiz(_ quiz: AzmyQuiz) {
         currentQuiz = quiz
         currentQuestionIndex = 0
         isQuizActive = true

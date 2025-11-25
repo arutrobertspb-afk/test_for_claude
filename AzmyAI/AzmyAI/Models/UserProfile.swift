@@ -28,13 +28,13 @@ struct UserProfile: Codable, Identifiable {
     var eveningReminderTime: Date = Calendar.current.date(from: DateComponents(hour: 21, minute: 0)) ?? Date()
 }
 
-// MARK: - Quiz Models
-struct Quiz: Identifiable {
+// MARK: - Legacy Quiz Models (deprecated - use QuizModels.swift instead)
+struct LegacyQuiz: Identifiable {
     let id: UUID = UUID()
     let title: String
     let description: String
     let category: QuizCategory
-    let questions: [QuizQuestion]
+    let questions: [LegacyQuizQuestion]
     let icon: String
 }
 
@@ -56,23 +56,23 @@ enum QuizCategory: String, Codable, CaseIterable {
     }
 }
 
-struct QuizQuestion: Identifiable {
+struct LegacyQuizQuestion: Identifiable {
     let id: UUID = UUID()
     let text: String
-    let type: QuestionType
-    let options: [QuizOption]?
+    let type: LegacyQuestionType
+    let options: [LegacyQuizOption]?
     let minValue: Int?
     let maxValue: Int?
 }
 
-enum QuestionType {
+enum LegacyQuestionType {
     case singleChoice
     case multipleChoice
     case scale
     case text
 }
 
-struct QuizOption: Identifiable, Hashable {
+struct LegacyQuizOption: Identifiable, Hashable {
     let id: UUID = UUID()
     let text: String
     let value: Int

@@ -9,7 +9,7 @@ import Foundation
 import SwiftUI
 
 // MARK: - Quiz
-struct Quiz: Identifiable, Codable {
+struct AzmyQuiz: Identifiable, Codable {
     let id: UUID
     let title: String
     let description: String
@@ -156,8 +156,8 @@ struct TraitScore: Codable, Identifiable {
 }
 
 // MARK: - Sample Quizzes
-extension Quiz {
-    static let interiorStyleQuiz = Quiz(
+extension AzmyQuiz {
+    static let interiorStyleQuiz = AzmyQuiz(
         title: "Fast Quiz",
         description: "Understand your interior taste",
         icon: "paintpalette.fill",
@@ -267,7 +267,7 @@ extension Quiz {
         ]
     )
 
-    static let personalityQuiz = Quiz(
+    static let personalityQuiz = AzmyQuiz(
         title: "Personality Quiz",
         description: "Discover your work and life style",
         icon: "brain.head.profile",
@@ -304,7 +304,7 @@ extension Quiz {
         ]
     )
 
-    static let allQuizzes: [Quiz] = [interiorStyleQuiz, personalityQuiz]
+    static let allQuizzes: [AzmyQuiz] = [interiorStyleQuiz, personalityQuiz]
 }
 
 // MARK: - Personality Types
