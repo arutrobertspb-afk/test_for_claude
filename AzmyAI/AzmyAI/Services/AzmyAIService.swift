@@ -285,24 +285,62 @@ class AzmyAIService: ObservableObject {
         )
 
         do {
-            request.httpBody = try JSONEncoder().encode(body)
-            let (data, _) = try await URLSession.shared.data(for: request)
+            let jsonData = try JSONEncoder().encode(body)
+            request.httpBody = jsonData
+
+            // Debug: print request
+            if let jsonString = String(data: jsonData, encoding: .utf8) {
+                print("📤 Mistral Request: \(jsonString.prefix(500))...")
+            }
+
+            let (data, httpResponse) = try await URLSession.shared.data(for: request)
+
+            // Debug: print response
+            if let jsonString = String(data: data, encoding: .utf8) {
+                print("📥 Mistral Response: \(jsonString.prefix(1000))...")
+            }
+
+            if let httpResp = httpResponse as? HTTPURLResponse {
+                print("📊 HTTP Status: \(httpResp.statusCode)")
+                if httpResp.statusCode != 200 {
+                    print("❌ API Error: \(String(data: data, encoding: .utf8) ?? "unknown")")
+                    return nil
+                }
+            }
+
             let response = try JSONDecoder().decode(MistralChatResponse.self, from: data)
+
+            // Debug: check for tool calls
+            if let toolCalls = response.choices.first?.message.tool_calls {
+                print("🔧 Tool calls found: \(toolCalls.count)")
+                for tc in toolCalls {
+                    print("   - \(tc.function.name): \(tc.function.arguments)")
+                }
+            } else {
+                print("ℹ️ No tool calls in response")
+            }
+
             return response.choices.first?.message
         } catch {
-            print("Mistral API error: \(error)")
+            print("❌ Mistral API error: \(error)")
             return nil
         }
     }
 
     // MARK: - Execute Tool Call
     private func executeToolCall(_ toolCall: ToolCall) async -> String {
+        print("🔧 Executing tool: \(toolCall.function.name)")
+        print("   Arguments: \(toolCall.function.arguments)")
+
         guard let argsData = toolCall.function.arguments.data(using: .utf8),
               let args = try? JSONSerialization.jsonObject(with: argsData) as? [String: Any] else {
+            print("❌ Failed to parse tool arguments")
             return "Failed to parse tool arguments"
         }
 
-        return await toolExecutor.execute(toolName: toolCall.function.name, arguments: args)
+        let result = await toolExecutor.execute(toolName: toolCall.function.name, arguments: args)
+        print("✅ Tool result: \(result)")
+        return result
     }
 
     // MARK: - Helper
