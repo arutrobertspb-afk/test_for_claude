@@ -14,17 +14,22 @@ class ChatViewModel: ObservableObject {
 
     private let aiService = AIService()
     private var cancellables = Set<AnyCancellable>()
+    private var streamingTimer: Timer?
+    private var currentStreamingIndex: Int = 0
+
+    // Streaming speed (characters per tick)
+    private let streamingSpeed: Int = 3
+    private let streamingInterval: TimeInterval = 0.02
 
     init() {
-        // Add welcome message
+        // Add welcome message with streaming effect
         addWelcomeMessage()
     }
 
     // MARK: - Welcome Message
     private func addWelcomeMessage() {
         let context = ChatContext()
-        let welcomeMessage = ChatMessage(
-            content: """
+        let welcomeContent = """
             \(context.timeOfDay.greeting)! I'm Azmy, your personal AI assistant.
 
             I'm here to help you:
@@ -34,21 +39,75 @@ class ChatViewModel: ObservableObject {
             - Give you personalized insights
 
             How can I help you today?
-            """,
+            """
+
+        let welcomeMessage = ChatMessage(
+            content: welcomeContent,
             role: .assistant,
             suggestions: [
                 SuggestedAction(type: .quickReply, title: "Plan my day"),
                 SuggestedAction(type: .quickReply, title: "Log my energy"),
                 SuggestedAction(type: .quickReply, title: "What can you do?")
-            ]
+            ],
+            isStreaming: true
         )
         messages.append(welcomeMessage)
+
+        // Start streaming animation for welcome message
+        startStreaming(messageId: welcomeMessage.id)
+    }
+
+    // MARK: - Streaming Animation
+    private func startStreaming(messageId: UUID) {
+        guard let index = messages.firstIndex(where: { $0.id == messageId }) else { return }
+
+        currentStreamingIndex = 0
+        let fullContent = messages[index].content
+
+        streamingTimer?.invalidate()
+        streamingTimer = Timer.scheduledTimer(withTimeInterval: streamingInterval, repeats: true) { [weak self] timer in
+            guard let self = self else {
+                timer.invalidate()
+                return
+            }
+
+            DispatchQueue.main.async {
+                guard let msgIndex = self.messages.firstIndex(where: { $0.id == messageId }) else {
+                    timer.invalidate()
+                    return
+                }
+
+                let targetIndex = min(self.currentStreamingIndex + self.streamingSpeed, fullContent.count)
+                let endIndex = fullContent.index(fullContent.startIndex, offsetBy: targetIndex)
+                self.messages[msgIndex].displayedContent = String(fullContent[..<endIndex])
+                self.currentStreamingIndex = targetIndex
+
+                // Check if streaming is complete
+                if self.currentStreamingIndex >= fullContent.count {
+                    self.messages[msgIndex].isStreaming = false
+                    timer.invalidate()
+                    self.streamingTimer = nil
+                }
+            }
+        }
     }
 
     // MARK: - Send Message
     func sendMessage(profile: UserProfile, calendarEvents: [CalendarEvent] = []) {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
+
+        // Stop any ongoing streaming
+        streamingTimer?.invalidate()
+        streamingTimer = nil
+
+        // Complete any streaming messages
+        for i in messages.indices {
+            if messages[i].isStreaming {
+                messages[i].displayedContent = messages[i].content
+                messages[i].isStreaming = false
+            }
+        }
 
         // Add user message
         let userMessage = ChatMessage(content: text, role: .user)
@@ -75,19 +134,30 @@ class ChatViewModel: ObservableObject {
 
                 await MainActor.run {
                     self.isTyping = false
-                    self.messages.append(response)
+
+                    // Create streaming message
+                    var streamingMessage = response
+                    streamingMessage.isStreaming = true
+                    streamingMessage.displayedContent = ""
+
+                    self.messages.append(streamingMessage)
+
+                    // Start streaming animation
+                    self.startStreaming(messageId: streamingMessage.id)
                 }
             } catch {
                 await MainActor.run {
                     self.isTyping = false
                     self.error = error.localizedDescription
 
-                    // Add error message
+                    // Add error message with streaming
                     let errorMessage = ChatMessage(
                         content: "Sorry, I had trouble processing that. Please try again.",
-                        role: .assistant
+                        role: .assistant,
+                        isStreaming: true
                     )
                     self.messages.append(errorMessage)
+                    self.startStreaming(messageId: errorMessage.id)
                 }
             }
         }
@@ -105,7 +175,6 @@ class ChatViewModel: ObservableObject {
             inputText = action.title
             sendMessage(profile: profile, calendarEvents: calendarEvents)
         case .createEvent:
-            // This would trigger event creation flow
             inputText = "I want to create an event"
             sendMessage(profile: profile, calendarEvents: calendarEvents)
         case .setReminder:
@@ -123,9 +192,28 @@ class ChatViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Skip Streaming
+    func skipStreaming() {
+        streamingTimer?.invalidate()
+        streamingTimer = nil
+
+        for i in messages.indices {
+            if messages[i].isStreaming {
+                messages[i].displayedContent = messages[i].content
+                messages[i].isStreaming = false
+            }
+        }
+    }
+
     // MARK: - Clear Chat
     func clearChat() {
+        streamingTimer?.invalidate()
+        streamingTimer = nil
         messages.removeAll()
         addWelcomeMessage()
+    }
+
+    deinit {
+        streamingTimer?.invalidate()
     }
 }

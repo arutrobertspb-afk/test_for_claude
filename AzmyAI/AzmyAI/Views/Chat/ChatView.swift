@@ -2,7 +2,7 @@
 //  ChatView.swift
 //  AzmyAI
 //
-//  Dark theme chat interface
+//  Dark theme chat interface with streaming text
 //
 
 import SwiftUI
@@ -49,6 +49,11 @@ struct ChatView: View {
                     ForEach(chatViewModel.messages) { message in
                         MessageBubble(message: message) { action in
                             handleAction(action)
+                        } onTap: {
+                            // Tap to skip streaming
+                            if message.isStreaming {
+                                chatViewModel.skipStreaming()
+                            }
                         }
                         .id(message.id)
                     }
@@ -62,6 +67,9 @@ struct ChatView: View {
                 .padding(.vertical, 12)
             }
             .onChange(of: chatViewModel.messages.count) { _, _ in
+                scrollToBottom(proxy: proxy)
+            }
+            .onChange(of: chatViewModel.messages.last?.displayedContent) { _, _ in
                 scrollToBottom(proxy: proxy)
             }
         }
@@ -141,6 +149,7 @@ struct ChatView: View {
 struct MessageBubble: View {
     let message: ChatMessage
     var onAction: ((SuggestedAction) -> Void)?
+    var onTap: (() -> Void)?
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 8) {
@@ -161,20 +170,24 @@ struct MessageBubble: View {
                 Spacer(minLength: 40)
             }
         }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            onTap?()
+        }
     }
 
     private var assistantMessageView: some View {
         HStack(alignment: .top, spacing: 8) {
             avatarView
             VStack(alignment: .leading, spacing: 8) {
-                messageTextView(isUser: false)
+                StreamingTextView(message: message)
                 suggestedActionsView
             }
         }
     }
 
     private var userMessageView: some View {
-        messageTextView(isUser: true)
+        messageTextView(content: message.content, isUser: true)
     }
 
     private var avatarView: some View {
@@ -188,8 +201,8 @@ struct MessageBubble: View {
             )
     }
 
-    private func messageTextView(isUser: Bool) -> some View {
-        Text(message.content)
+    private func messageTextView(content: String, isUser: Bool) -> some View {
+        Text(content)
             .font(AzmyFonts.body())
             .foregroundColor(isUser ? .white : AzmyColors.textPrimary)
             .padding(.horizontal, 16)
@@ -207,7 +220,8 @@ struct MessageBubble: View {
 
     @ViewBuilder
     private var suggestedActionsView: some View {
-        if let suggestions = message.suggestions, !suggestions.isEmpty {
+        // Only show suggestions when streaming is complete
+        if let suggestions = message.suggestions, !suggestions.isEmpty, !message.isStreaming {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(suggestions) { action in
@@ -217,6 +231,39 @@ struct MessageBubble: View {
                     }
                 }
                 .padding(.leading, 40)
+            }
+        }
+    }
+}
+
+// MARK: - Streaming Text View
+struct StreamingTextView: View {
+    let message: ChatMessage
+    @State private var showCursor = true
+
+    let cursorTimer = Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 0) {
+            Text(message.displayedContent)
+                .font(AzmyFonts.body())
+                .foregroundColor(AzmyColors.textPrimary)
+
+            // Blinking cursor while streaming
+            if message.isStreaming {
+                Text("|")
+                    .font(AzmyFonts.body())
+                    .foregroundColor(AzmyColors.accentBlue)
+                    .opacity(showCursor ? 1 : 0)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(AzmyColors.backgroundCard)
+        .cornerRadius(16)
+        .onReceive(cursorTimer) { _ in
+            if message.isStreaming {
+                showCursor.toggle()
             }
         }
     }

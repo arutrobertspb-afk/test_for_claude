@@ -14,18 +14,27 @@ struct ChatMessage: Identifiable, Codable, Equatable {
     var suggestions: [SuggestedAction]?
     var isTyping: Bool = false
 
+    // Streaming support
+    var displayedContent: String
+    var isStreaming: Bool
+
     init(
         id: UUID = UUID(),
         content: String,
         role: MessageRole,
         timestamp: Date = Date(),
-        suggestions: [SuggestedAction]? = nil
+        suggestions: [SuggestedAction]? = nil,
+        isStreaming: Bool = false
     ) {
         self.id = id
         self.content = content
         self.role = role
         self.timestamp = timestamp
         self.suggestions = suggestions
+        self.isStreaming = isStreaming
+        // For user messages, show full content immediately
+        // For assistant messages with streaming, start empty
+        self.displayedContent = (role == .assistant && isStreaming) ? "" : content
     }
 
     static func == (lhs: ChatMessage, rhs: ChatMessage) -> Bool {
