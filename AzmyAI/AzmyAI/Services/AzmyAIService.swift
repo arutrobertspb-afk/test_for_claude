@@ -174,7 +174,7 @@ class AzmyAIService: ObservableObject {
 
     private let apiKey: String
     private let apiURL = "https://api.mistral.ai/v1/chat/completions"
-    private let model = "mistral-large-latest"
+    private let model = "mistral-small-latest"
 
     private let memory = ConversationMemory.shared
     private let toolExecutor = CalendarToolExecutor()
