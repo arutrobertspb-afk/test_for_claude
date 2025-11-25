@@ -53,11 +53,28 @@ class PlannerViewModel: ObservableObject {
     func fetchEventsForSelectedDate() async {
         await MainActor.run { isLoading = true }
 
+        print("📅 PlannerViewModel: fetchEventsForSelectedDate for \(selectedDate)")
+
+        // Wait for authorization if not yet authorized
+        if !calendarService.isAuthorized {
+            print("📅 Waiting for calendar authorization...")
+            try? await calendarService.requestAuthorization()
+        }
+
+        print("📅 CalendarService isAuthorized: \(calendarService.isAuthorized)")
+
         do {
             let startOfDay = Calendar.current.startOfDay(for: selectedDate)
             let endOfDay = Calendar.current.date(byAdding: .day, value: 1, to: startOfDay)!
 
+            print("📅 Fetching events from \(startOfDay) to \(endOfDay)")
+
             let fetchedEvents = try await calendarService.fetchEvents(from: startOfDay, to: endOfDay)
+
+            print("📅 Fetched \(fetchedEvents.count) events")
+            for event in fetchedEvents {
+                print("   - \(event.title): \(event.startDate)")
+            }
 
             await MainActor.run {
                 self.events = fetchedEvents.sorted { $0.startDate < $1.startDate }
@@ -67,7 +84,7 @@ class PlannerViewModel: ObservableObject {
             await MainActor.run {
                 self.isLoading = false
             }
-            print("Error fetching events: \(error)")
+            print("❌ Error fetching events: \(error)")
         }
     }
 
