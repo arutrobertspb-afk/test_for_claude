@@ -28,9 +28,6 @@ struct ChatView: View {
                 }
             }
         }
-        .onTapGesture {
-            isInputFocused = false
-        }
     }
 
     // MARK: - Messages ScrollView
