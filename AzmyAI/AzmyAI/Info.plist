@@ -24,6 +24,10 @@
 	<true/>
 	<key>NSCalendarsUsageDescription</key>
 	<string>Azmy needs access to your calendar to help you plan your day, create events, and provide scheduling insights.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Azmy needs full calendar access to create, edit, and manage your events. This allows the AI assistant to schedule meetings and optimize your daily routine.</string>
+	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
+	<string>Azmy needs to add events to your calendar.</string>
 	<key>NSHealthShareUsageDescription</key>
 	<string>Azmy uses your health data to provide personalized insights about your sleep, activity, and energy patterns to help optimize your daily routine.</string>
 	<key>NSHealthUpdateUsageDescription</key>

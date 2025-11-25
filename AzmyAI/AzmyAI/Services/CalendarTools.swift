@@ -327,26 +327,49 @@ struct CalendarTools {
 // MARK: - Calendar Tool Executor
 class CalendarToolExecutor {
     private let eventStore = EKEventStore()
-    private var hasCalendarAccess = false
 
     init() {
-        requestCalendarAccess()
+        print("📅 CalendarToolExecutor initialized")
     }
 
-    private func requestCalendarAccess() {
-        if #available(iOS 17.0, *) {
-            eventStore.requestFullAccessToEvents { granted, error in
-                self.hasCalendarAccess = granted
+    // MARK: - Ensure Authorization (async)
+    private func ensureAuthorization() async -> Bool {
+        let status = EKEventStore.authorizationStatus(for: .event)
+        print("📅 Current authorization status: \(status.rawValue)")
+
+        switch status {
+        case .authorized, .fullAccess:
+            print("✅ Calendar already authorized")
+            return true
+        case .notDetermined:
+            print("🔄 Requesting calendar authorization...")
+            do {
+                var granted = false
+                if #available(iOS 17.0, *) {
+                    granted = try await eventStore.requestFullAccessToEvents()
+                } else {
+                    granted = try await eventStore.requestAccess(to: .event)
+                }
+                print(granted ? "✅ Authorization granted" : "❌ Authorization denied")
+                return granted
+            } catch {
+                print("❌ Authorization error: \(error)")
+                return false
             }
-        } else {
-            eventStore.requestAccess(to: .event) { granted, error in
-                self.hasCalendarAccess = granted
-            }
+        case .denied, .restricted, .writeOnly:
+            print("❌ Calendar access denied or restricted")
+            return false
+        @unknown default:
+            print("❌ Unknown authorization status")
+            return false
         }
     }
 
     // MARK: - Execute Tool Call
     func execute(toolName: String, arguments: [String: Any]) async -> String {
+        print("🔧 CalendarToolExecutor.execute: \(toolName)")
+        print("   Arguments: \(arguments)")
+
         switch toolName {
         case "create_calendar_event":
             return await createEvent(arguments)
@@ -367,55 +390,106 @@ class CalendarToolExecutor {
 
     // MARK: - Create Event
     private func createEvent(_ args: [String: Any]) async -> String {
-        guard hasCalendarAccess else {
-            return "Calendar access not granted. Please enable in Settings."
+        print("📅 createEvent called with: \(args)")
+
+        guard await ensureAuthorization() else {
+            print("❌ Calendar access not granted")
+            return "Calendar access not granted. Please enable in Settings → Privacy → Calendars."
         }
 
         guard let title = args["title"] as? String,
               let startString = args["start_datetime"] as? String else {
+            print("❌ Missing required fields")
             return "Missing required fields: title and start_datetime"
         }
 
+        print("📅 Parsing date: \(startString)")
         let formatter = ISO8601DateFormatter()
-        guard let startDate = formatter.date(from: startString) else {
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+        // Try multiple date formats
+        var startDate: Date?
+        startDate = formatter.date(from: startString)
+
+        if startDate == nil {
+            formatter.formatOptions = [.withInternetDateTime]
+            startDate = formatter.date(from: startString)
+        }
+
+        if startDate == nil {
+            // Try simpler format YYYY-MM-DDTHH:MM:SS
+            let simpleFormatter = DateFormatter()
+            simpleFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+            startDate = simpleFormatter.date(from: startString)
+        }
+
+        guard let startDate = startDate else {
+            print("❌ Failed to parse date: \(startString)")
             return "Invalid date format. Use ISO 8601 format: YYYY-MM-DDTHH:MM:SS"
         }
 
+        print("✅ Parsed start date: \(startDate)")
+
         let endDate: Date
-        if let endString = args["end_datetime"] as? String,
-           let parsed = formatter.date(from: endString) {
-            endDate = parsed
+        if let endString = args["end_datetime"] as? String {
+            var parsedEnd: Date?
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            parsedEnd = formatter.date(from: endString)
+            if parsedEnd == nil {
+                formatter.formatOptions = [.withInternetDateTime]
+                parsedEnd = formatter.date(from: endString)
+            }
+            if parsedEnd == nil {
+                let simpleFormatter = DateFormatter()
+                simpleFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+                parsedEnd = simpleFormatter.date(from: endString)
+            }
+            endDate = parsedEnd ?? startDate.addingTimeInterval(3600)
         } else {
             endDate = startDate.addingTimeInterval(3600) // Default 1 hour
         }
+
+        print("📅 End date: \(endDate)")
 
         let event = EKEvent(eventStore: eventStore)
         event.title = title
         event.startDate = startDate
         event.endDate = endDate
-        event.calendar = eventStore.defaultCalendarForNewEvents
+
+        let defaultCalendar = eventStore.defaultCalendarForNewEvents
+        print("📅 Default calendar: \(defaultCalendar?.title ?? "nil")")
+        event.calendar = defaultCalendar
 
         if let location = args["location"] as? String {
             event.location = location
+            print("📅 Location: \(location)")
         }
 
         if let notes = args["notes"] as? String {
             event.notes = notes
+            print("📅 Notes: \(notes)")
         }
 
         do {
             try eventStore.save(event, span: .thisEvent)
             let timeFormatter = DateFormatter()
             timeFormatter.dateFormat = "MMM d, HH:mm"
-            return "✅ Event created: \"\(title)\" on \(timeFormatter.string(from: startDate))"
+            let successMsg = "✅ Event created: \"\(title)\" on \(timeFormatter.string(from: startDate))"
+            print(successMsg)
+            print("📅 Event ID: \(event.eventIdentifier ?? "no-id")")
+            return successMsg
         } catch {
-            return "Failed to create event: \(error.localizedDescription)"
+            let errorMsg = "Failed to create event: \(error.localizedDescription)"
+            print("❌ \(errorMsg)")
+            return errorMsg
         }
     }
 
     // MARK: - Delete Event
     private func deleteEvent(_ args: [String: Any]) async -> String {
-        guard hasCalendarAccess else {
+        print("📅 deleteEvent called with: \(args)")
+
+        guard await ensureAuthorization() else {
             return "Calendar access not granted."
         }
 
@@ -461,7 +535,9 @@ class CalendarToolExecutor {
 
     // MARK: - Edit Event
     private func editEvent(_ args: [String: Any]) async -> String {
-        guard hasCalendarAccess else {
+        print("📅 editEvent called with: \(args)")
+
+        guard await ensureAuthorization() else {
             return "Calendar access not granted."
         }
 
@@ -515,7 +591,9 @@ class CalendarToolExecutor {
 
     // MARK: - Get Events
     private func getEvents(_ args: [String: Any]) async -> String {
-        guard hasCalendarAccess else {
+        print("📅 getEvents called with: \(args)")
+
+        guard await ensureAuthorization() else {
             return "Calendar access not granted."
         }
 
@@ -568,7 +646,9 @@ class CalendarToolExecutor {
 
     // MARK: - Analyze Schedule
     private func analyzeSchedule(_ args: [String: Any]) async -> String {
-        guard hasCalendarAccess else {
+        print("📅 analyzeSchedule called with: \(args)")
+
+        guard await ensureAuthorization() else {
             return "Calendar access not granted."
         }
 

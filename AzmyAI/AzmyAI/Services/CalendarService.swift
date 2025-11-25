@@ -13,7 +13,23 @@ class CalendarService: ObservableObject {
     @Published var calendars: [EKCalendar] = []
     @Published var events: [CalendarEvent] = []
 
+    init() {
+        // Check and request authorization on init
+        Task {
+            await checkAndRequestAuthorization()
+        }
+    }
+
     // MARK: - Authorization
+    private func checkAndRequestAuthorization() async {
+        do {
+            try await requestAuthorization()
+            print("✅ Calendar access granted")
+        } catch {
+            print("❌ Calendar access error: \(error)")
+        }
+    }
+
     func requestAuthorization() async throws {
         let status = EKEventStore.authorizationStatus(for: .event)
 
@@ -108,7 +124,11 @@ class CalendarService: ObservableObject {
         notes: String? = nil,
         calendarIdentifier: String? = nil
     ) async throws -> CalendarEvent {
+        print("📅 Creating event: \(title)")
+        print("   isAuthorized: \(isAuthorized)")
+
         guard isAuthorized else {
+            print("❌ Not authorized for calendar")
             throw CalendarError.notAuthorized
         }
 
@@ -124,11 +144,19 @@ class CalendarService: ObservableObject {
         if let calId = calendarIdentifier,
            let calendar = calendars.first(where: { $0.calendarIdentifier == calId }) {
             event.calendar = calendar
+            print("   Using calendar: \(calendar.title)")
         } else {
             event.calendar = eventStore.defaultCalendarForNewEvents
+            print("   Using default calendar: \(eventStore.defaultCalendarForNewEvents?.title ?? "nil")")
         }
 
-        try eventStore.save(event, span: .thisEvent)
+        do {
+            try eventStore.save(event, span: .thisEvent)
+            print("✅ Event saved successfully: \(event.eventIdentifier ?? "no-id")")
+        } catch {
+            print("❌ Failed to save event: \(error)")
+            throw error
+        }
 
         return CalendarEvent(
             title: title,
