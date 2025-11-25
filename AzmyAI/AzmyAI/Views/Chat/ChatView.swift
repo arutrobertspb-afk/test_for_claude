@@ -16,80 +16,114 @@ struct ChatView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Messages
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(spacing: Spacing.md) {
-                            ForEach(chatViewModel.messages) { message in
-                                MessageBubble(message: message) { action in
-                                    chatViewModel.handleSuggestedAction(
-                                        action,
-                                        profile: userProfile.profile,
-                                        calendarEvents: plannerViewModel.events
-                                    )
-                                }
-                                .id(message.id)
-                            }
-
-                            if chatViewModel.isTyping {
-                                TypingIndicator()
-                                    .id("typing")
-                            }
-                        }
-                        .padding(.horizontal, Spacing.md)
-                        .padding(.vertical, Spacing.sm)
-                    }
-                    .onChange(of: chatViewModel.messages.count) { _, _ in
-                        withAnimation {
-                            proxy.scrollTo(chatViewModel.messages.last?.id ?? "typing", anchor: .bottom)
-                        }
-                    }
-                }
-
-                // Quick prompts (collapsible)
-                if showQuickPrompts && chatViewModel.messages.count <= 1 {
-                    QuickPromptsBar { prompt in
-                        chatViewModel.handleQuickPrompt(
-                            prompt,
-                            profile: userProfile.profile,
-                            calendarEvents: plannerViewModel.events
-                        )
-                        showQuickPrompts = false
-                    }
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
-
-                // Input bar
-                ChatInputBar(
-                    text: $chatViewModel.inputText,
-                    isTyping: chatViewModel.isTyping,
-                    isFocused: $isInputFocused
-                ) {
-                    chatViewModel.sendMessage(
-                        profile: userProfile.profile,
-                        calendarEvents: plannerViewModel.events
-                    )
-                }
+                messagesScrollView
+                quickPromptsSection
+                inputBarSection
             }
             .navigationTitle("Azmy")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Button {
-                            chatViewModel.clearChat()
-                            showQuickPrompts = true
-                        } label: {
-                            Label("New Chat", systemImage: "plus.bubble")
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                    }
+                    menuButton
                 }
             }
         }
         .onTapGesture {
             isInputFocused = false
+        }
+    }
+
+    // MARK: - Messages ScrollView
+    private var messagesScrollView: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 16) {
+                    ForEach(chatViewModel.messages) { message in
+                        MessageBubble(message: message) { action in
+                            handleAction(action)
+                        }
+                        .id(message.id)
+                    }
+
+                    if chatViewModel.isTyping {
+                        TypingIndicator()
+                            .id("typing")
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+            }
+            .onChange(of: chatViewModel.messages.count) { _, _ in
+                scrollToBottom(proxy: proxy)
+            }
+        }
+    }
+
+    // MARK: - Quick Prompts Section
+    @ViewBuilder
+    private var quickPromptsSection: some View {
+        if showQuickPrompts && chatViewModel.messages.count <= 1 {
+            QuickPromptsBar { prompt in
+                handleQuickPrompt(prompt)
+            }
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+        }
+    }
+
+    // MARK: - Input Bar Section
+    private var inputBarSection: some View {
+        ChatInputBar(
+            text: $chatViewModel.inputText,
+            isTyping: chatViewModel.isTyping,
+            isFocused: $isInputFocused,
+            onSend: sendMessage
+        )
+    }
+
+    // MARK: - Menu Button
+    private var menuButton: some View {
+        Menu {
+            Button {
+                chatViewModel.clearChat()
+                showQuickPrompts = true
+            } label: {
+                Label("New Chat", systemImage: "plus.bubble")
+            }
+        } label: {
+            Image(systemName: "ellipsis.circle")
+        }
+    }
+
+    // MARK: - Actions
+    private func handleAction(_ action: SuggestedAction) {
+        chatViewModel.handleSuggestedAction(
+            action,
+            profile: userProfile.profile,
+            calendarEvents: plannerViewModel.events
+        )
+    }
+
+    private func handleQuickPrompt(_ prompt: QuickPrompt) {
+        chatViewModel.handleQuickPrompt(
+            prompt,
+            profile: userProfile.profile,
+            calendarEvents: plannerViewModel.events
+        )
+        showQuickPrompts = false
+    }
+
+    private func sendMessage() {
+        chatViewModel.sendMessage(
+            profile: userProfile.profile,
+            calendarEvents: plannerViewModel.events
+        )
+    }
+
+    private func scrollToBottom(proxy: ScrollViewProxy) {
+        withAnimation {
+            if let lastId = chatViewModel.messages.last?.id {
+                proxy.scrollTo(lastId, anchor: .bottom)
+            }
         }
     }
 }
@@ -100,39 +134,18 @@ struct MessageBubble: View {
     var onAction: ((SuggestedAction) -> Void)?
 
     var body: some View {
-        HStack(alignment: .bottom, spacing: Spacing.xs) {
+        HStack(alignment: .bottom, spacing: 8) {
             if message.role == .user {
                 Spacer(minLength: 60)
             }
 
-            VStack(alignment: message.role == .user ? .trailing : .leading, spacing: Spacing.xs) {
-                // Message content
+            VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 8) {
                 if message.role == .assistant {
-                    HStack(alignment: .top, spacing: Spacing.xs) {
-                        // Avatar
-                        Circle()
-                            .fill(Color.azuryGradient)
-                            .frame(width: 32, height: 32)
-                            .overlay(
-                                Image(systemName: "sparkles")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.white)
-                            )
-
-                        VStack(alignment: .leading, spacing: Spacing.xs) {
-                            messageContent
-                            suggestedActions
-                        }
-                    }
+                    assistantMessageView
                 } else {
-                    messageContent
+                    userMessageView
                 }
-
-                // Timestamp
-                Text(message.timestamp, style: .time)
-                    .font(.azuryCaption)
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal, message.role == .assistant ? 40 : 0)
+                timestampView
             }
 
             if message.role == .assistant {
@@ -141,38 +154,56 @@ struct MessageBubble: View {
         }
     }
 
-    private var messageContent: some View {
-        Text(LocalizedStringKey(message.content))
-            .font(.azuryBody)
-            .padding(.horizontal, Spacing.md)
-            .padding(.vertical, Spacing.sm)
-            .background(
-                message.role == .user
-                    ? AnyView(Color.azuryGradient)
-                    : AnyView(Color.azurySecondaryBackground)
+    private var assistantMessageView: some View {
+        HStack(alignment: .top, spacing: 8) {
+            avatarView
+            VStack(alignment: .leading, spacing: 8) {
+                messageTextView(isUser: false)
+                suggestedActionsView
+            }
+        }
+    }
+
+    private var userMessageView: some View {
+        messageTextView(isUser: true)
+    }
+
+    private var avatarView: some View {
+        Circle()
+            .fill(LinearGradient(colors: [Color(hex: "4F46E5"), Color(hex: "7C3AED")], startPoint: .topLeading, endPoint: .bottomTrailing))
+            .frame(width: 32, height: 32)
+            .overlay(
+                Image(systemName: "sparkles")
+                    .font(.system(size: 14))
+                    .foregroundColor(.white)
             )
-            .foregroundColor(message.role == .user ? .white : .primary)
-            .cornerRadius(CornerRadius.large, corners: message.role == .user
-                ? [.topLeft, .topRight, .bottomLeft]
-                : [.topLeft, .topRight, .bottomRight])
+    }
+
+    private func messageTextView(isUser: Bool) -> some View {
+        Text(message.content)
+            .font(.body)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(isUser ? Color(hex: "4F46E5") : Color(UIColor.secondarySystemBackground))
+            .foregroundColor(isUser ? .white : .primary)
+            .cornerRadius(16)
+    }
+
+    private var timestampView: some View {
+        Text(message.timestamp, style: .time)
+            .font(.caption2)
+            .foregroundColor(.secondary)
+            .padding(.horizontal, message.role == .assistant ? 40 : 0)
     }
 
     @ViewBuilder
-    private var suggestedActions: some View {
+    private var suggestedActionsView: some View {
         if let suggestions = message.suggestions, !suggestions.isEmpty {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: Spacing.xs) {
+                HStack(spacing: 8) {
                     ForEach(suggestions) { action in
-                        Button {
+                        SuggestionButton(action: action) {
                             onAction?(action)
-                        } label: {
-                            Text(action.title)
-                                .font(.azuryFootnote)
-                                .foregroundColor(.azuryBlue)
-                                .padding(.horizontal, Spacing.sm)
-                                .padding(.vertical, Spacing.xs)
-                                .background(Color.azuryBlue.opacity(0.1))
-                                .cornerRadius(CornerRadius.circular)
                         }
                     }
                 }
@@ -182,14 +213,33 @@ struct MessageBubble: View {
     }
 }
 
-// MARK: - Typing Indicator
-struct TypingIndicator: View {
-    @State private var animationOffset = 0
+// MARK: - Suggestion Button
+struct SuggestionButton: View {
+    let action: SuggestedAction
+    let onTap: () -> Void
 
     var body: some View {
-        HStack(alignment: .bottom, spacing: Spacing.xs) {
+        Button(action: onTap) {
+            Text(action.title)
+                .font(.footnote)
+                .foregroundColor(Color(hex: "4F46E5"))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color(hex: "4F46E5").opacity(0.1))
+                .cornerRadius(20)
+        }
+    }
+}
+
+// MARK: - Typing Indicator
+struct TypingIndicator: View {
+    @State private var dotIndex = 0
+    let timer = Timer.publish(every: 0.4, on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 8) {
             Circle()
-                .fill(Color.azuryGradient)
+                .fill(LinearGradient(colors: [Color(hex: "4F46E5"), Color(hex: "7C3AED")], startPoint: .topLeading, endPoint: .bottomTrailing))
                 .frame(width: 32, height: 32)
                 .overlay(
                     Image(systemName: "sparkles")
@@ -202,19 +252,19 @@ struct TypingIndicator: View {
                     Circle()
                         .fill(Color.secondary)
                         .frame(width: 8, height: 8)
-                        .offset(y: animationOffset == index ? -4 : 0)
+                        .offset(y: dotIndex == index ? -4 : 0)
                 }
             }
-            .padding(.horizontal, Spacing.md)
-            .padding(.vertical, Spacing.sm)
-            .background(Color.azurySecondaryBackground)
-            .cornerRadius(CornerRadius.large, corners: [.topLeft, .topRight, .bottomRight])
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(Color(UIColor.secondarySystemBackground))
+            .cornerRadius(16)
 
             Spacer()
         }
-        .onAppear {
-            withAnimation(.easeInOut(duration: 0.4).repeatForever()) {
-                animationOffset = (animationOffset + 1) % 3
+        .onReceive(timer) { _ in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                dotIndex = (dotIndex + 1) % 3
             }
         }
     }
@@ -225,25 +275,25 @@ struct QuickPromptsBar: View {
     let onSelect: (QuickPrompt) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
+        VStack(alignment: .leading, spacing: 12) {
             Text("Quick actions")
-                .font(.azuryFootnote)
+                .font(.footnote)
                 .foregroundColor(.secondary)
-                .padding(.horizontal, Spacing.md)
+                .padding(.horizontal, 16)
 
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: Spacing.sm) {
+                HStack(spacing: 12) {
                     ForEach(QuickPrompt.samples) { prompt in
                         QuickPromptChip(prompt: prompt) {
                             onSelect(prompt)
                         }
                     }
                 }
-                .padding(.horizontal, Spacing.md)
+                .padding(.horizontal, 16)
             }
         }
-        .padding(.vertical, Spacing.sm)
-        .background(Color.azurySecondaryBackground.opacity(0.5))
+        .padding(.vertical, 12)
+        .background(Color(UIColor.secondarySystemBackground).opacity(0.5))
     }
 }
 
@@ -253,20 +303,19 @@ struct QuickPromptChip: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: Spacing.xs) {
+            HStack(spacing: 8) {
                 Image(systemName: prompt.icon)
                     .font(.system(size: 14))
-
                 Text(prompt.title)
-                    .font(.azuryFootnote)
+                    .font(.footnote)
             }
-            .padding(.horizontal, Spacing.sm)
-            .padding(.vertical, Spacing.xs)
-            .background(Color.azurySecondaryBackground)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color(UIColor.secondarySystemBackground))
             .foregroundColor(.primary)
-            .cornerRadius(CornerRadius.circular)
+            .cornerRadius(20)
             .overlay(
-                RoundedRectangle(cornerRadius: CornerRadius.circular)
+                RoundedRectangle(cornerRadius: 20)
                     .stroke(Color.gray.opacity(0.2), lineWidth: 1)
             )
         }
@@ -280,52 +329,38 @@ struct ChatInputBar: View {
     var isFocused: FocusState<Bool>.Binding
     let onSend: () -> Void
 
-    var body: some View {
-        HStack(spacing: Spacing.sm) {
-            TextField("Ask Azmy anything...", text: $text, axis: .vertical)
-                .textFieldStyle(.plain)
-                .lineLimit(1...5)
-                .focused(isFocused)
-                .padding(.horizontal, Spacing.md)
-                .padding(.vertical, Spacing.sm)
-                .background(Color.azurySecondaryBackground)
-                .cornerRadius(CornerRadius.large)
-
-            Button(action: onSend) {
-                Image(systemName: "arrow.up.circle.fill")
-                    .font(.system(size: 32))
-                    .foregroundColor(canSend ? Color.azuryBlue : Color.gray.opacity(0.3))
-            }
-            .disabled(!canSend || isTyping)
-        }
-        .padding(.horizontal, Spacing.md)
-        .padding(.vertical, Spacing.sm)
-        .background(Color.azuryBackground)
-    }
-
     private var canSend: Bool {
         !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isTyping
     }
-}
 
-// MARK: - Corner Radius Extension
-extension View {
-    func cornerRadius(_ radius: CGFloat, corners: UIRectCorner) -> some View {
-        clipShape(RoundedCorner(radius: radius, corners: corners))
+    var body: some View {
+        HStack(spacing: 12) {
+            textField
+            sendButton
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(Color(UIColor.systemBackground))
     }
-}
 
-struct RoundedCorner: Shape {
-    var radius: CGFloat = .infinity
-    var corners: UIRectCorner = .allCorners
+    private var textField: some View {
+        TextField("Ask Azmy anything...", text: $text, axis: .vertical)
+            .textFieldStyle(.plain)
+            .lineLimit(1...5)
+            .focused(isFocused)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(Color(UIColor.secondarySystemBackground))
+            .cornerRadius(16)
+    }
 
-    func path(in rect: CGRect) -> Path {
-        let path = UIBezierPath(
-            roundedRect: rect,
-            byRoundingCorners: corners,
-            cornerRadii: CGSize(width: radius, height: radius)
-        )
-        return Path(path.cgPath)
+    private var sendButton: some View {
+        Button(action: onSend) {
+            Image(systemName: "arrow.up.circle.fill")
+                .font(.system(size: 32))
+                .foregroundColor(canSend ? Color(hex: "4F46E5") : Color.gray.opacity(0.3))
+        }
+        .disabled(!canSend)
     }
 }
 
