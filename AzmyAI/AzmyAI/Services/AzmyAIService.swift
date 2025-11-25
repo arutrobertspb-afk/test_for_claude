@@ -126,13 +126,13 @@ struct AzmySystemPrompt {
 
 // MARK: - Mistral API Models
 struct MistralChatRequest: Codable {
-    let agent_id: String
+    let model: String
     let messages: [MistralMessage]
     let tools: [MistralTool]?
     let tool_choice: String?
 
-    init(agentId: String, messages: [MistralMessage], tools: [MistralTool]? = nil) {
-        self.agent_id = agentId
+    init(model: String, messages: [MistralMessage], tools: [MistralTool]? = nil) {
+        self.model = model
         self.messages = messages
         self.tools = tools
         self.tool_choice = tools != nil ? "auto" : nil
@@ -173,8 +173,8 @@ class AzmyAIService: ObservableObject {
     static let shared = AzmyAIService()
 
     private let apiKey: String
-    private let apiURL = "https://api.mistral.ai/v1/agents/completions"
-    private let agentId = "ag:f4c97d3b:20250711:second-agent:92a2c181"
+    private let apiURL = "https://api.mistral.ai/v1/chat/completions"
+    private let model = "mistral-large-latest"
 
     private let memory = ConversationMemory.shared
     private let toolExecutor = CalendarToolExecutor()
@@ -279,7 +279,7 @@ class AzmyAIService: ObservableObject {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         let body = MistralChatRequest(
-            agentId: agentId,
+            model: model,
             messages: messages,
             tools: includeTools ? CalendarTools.allTools : nil
         )
