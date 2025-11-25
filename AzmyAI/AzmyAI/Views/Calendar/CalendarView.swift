@@ -2,7 +2,7 @@
 //  CalendarView.swift
 //  AzmyAI
 //
-//  Calendar with month/week views matching Figma design
+//  Google Calendar style implementation
 //
 
 import SwiftUI
@@ -29,47 +29,73 @@ struct CalendarView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // Header with month/week navigation
-                calendarHeader
+                // Header
+                CalendarHeader(
+                    title: showWeekView ? dayTitle : monthTitle,
+                    onPrevious: previousAction,
+                    onNext: nextAction
+                )
 
                 if showWeekView {
-                    // Week timeline view
-                    WeekTimelineView(
-                        selectedDate: $selectedDate,
-                        events: plannerViewModel.events,
+                    // Week selector
+                    WeekDayStrip(selectedDate: $selectedDate)
+
+                    // Day timeline
+                    DayTimelineView(
+                        selectedDate: selectedDate,
+                        events: eventsForSelectedDate,
                         onEventTap: { event in
                             selectedEvent = event
                         }
                     )
                 } else {
-                    // Month grid view
+                    // Weekday headers
+                    WeekdayHeader()
+
+                    // Month grid
                     MonthGridView(
                         currentMonth: currentMonth,
                         selectedDate: $selectedDate,
-                        events: plannerViewModel.events
+                        events: plannerViewModel.events,
+                        onDateTap: { date in
+                            selectedDate = date
+                            showWeekView = true
+                        }
                     )
                 }
 
                 Spacer()
             }
 
-            // FAB Button
+            // FAB
             VStack {
                 Spacer()
                 HStack {
                     Spacer()
                     Button(action: { showAddEvent = true }) {
                         Image(systemName: "plus")
-                            .font(.title2)
-                            .fontWeight(.semibold)
+                            .font(.title2.weight(.medium))
                             .foregroundColor(.white)
                             .frame(width: 56, height: 56)
                             .background(AzmyColors.accentBlue)
                             .clipShape(Circle())
+                            .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
                     }
-                    .padding(.trailing, 20)
-                    .padding(.bottom, 20)
+                    .padding(20)
                 }
+            }
+
+            // Event Preview Overlay
+            if let event = selectedEvent {
+                Color.black.opacity(0.3)
+                    .ignoresSafeArea()
+                    .onTapGesture { selectedEvent = nil }
+
+                EventPreviewCard(
+                    event: event,
+                    onEdit: { /* TODO */ },
+                    onClose: { selectedEvent = nil }
+                )
             }
         }
         .sheet(isPresented: $showAddEvent) {
@@ -83,9 +109,8 @@ struct CalendarView: View {
                     )
                 }
             }
-        }
-        .sheet(item: $selectedEvent) { event in
-            EventPreviewSheet(event: event, onDismiss: { selectedEvent = nil })
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
         }
         .onAppear {
             plannerViewModel.selectDate(selectedDate)
@@ -95,52 +120,6 @@ struct CalendarView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .calendarEventsDidChange)) { _ in
             plannerViewModel.selectDate(selectedDate)
-        }
-    }
-
-    // MARK: - Calendar Header
-    private var calendarHeader: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Button(action: previousMonth) {
-                    Image(systemName: "chevron.left")
-                        .font(.title3)
-                        .foregroundColor(.white)
-                }
-
-                Spacer()
-
-                Text(showWeekView ? dayTitle : monthTitle)
-                    .font(AzmyFonts.headline2())
-                    .foregroundColor(.white)
-
-                Spacer()
-
-                Button(action: nextMonth) {
-                    Image(systemName: "chevron.right")
-                        .font(.title3)
-                        .foregroundColor(.white)
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 16)
-
-            // Weekday headers
-            if !showWeekView {
-                HStack(spacing: 0) {
-                    ForEach(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], id: \.self) { day in
-                        Text(day)
-                            .font(AzmyFonts.caption())
-                            .foregroundColor(AzmyColors.textTertiary)
-                            .frame(maxWidth: .infinity)
-                    }
-                }
-                .padding(.horizontal, 8)
-                .padding(.bottom, 8)
-            } else {
-                // Week days horizontal scroll
-                WeekDaySelector(selectedDate: $selectedDate)
-            }
         }
     }
 
@@ -156,8 +135,14 @@ struct CalendarView: View {
         return formatter.string(from: selectedDate)
     }
 
-    private func previousMonth() {
-        withAnimation {
+    private var eventsForSelectedDate: [CalendarEvent] {
+        plannerViewModel.events.filter {
+            Calendar.current.isDate($0.startDate, inSameDayAs: selectedDate)
+        }
+    }
+
+    private func previousAction() {
+        withAnimation(.easeInOut(duration: 0.2)) {
             if showWeekView {
                 selectedDate = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate) ?? selectedDate
             } else {
@@ -166,8 +151,8 @@ struct CalendarView: View {
         }
     }
 
-    private func nextMonth() {
-        withAnimation {
+    private func nextAction() {
+        withAnimation(.easeInOut(duration: 0.2)) {
             if showWeekView {
                 selectedDate = Calendar.current.date(byAdding: .day, value: 1, to: selectedDate) ?? selectedDate
             } else {
@@ -177,33 +162,90 @@ struct CalendarView: View {
     }
 }
 
+// MARK: - Calendar Header
+struct CalendarHeader: View {
+    let title: String
+    let onPrevious: () -> Void
+    let onNext: () -> Void
+
+    var body: some View {
+        HStack {
+            Button(action: onPrevious) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(width: 36, height: 36)
+                    .background(AzmyColors.backgroundCard)
+                    .cornerRadius(10)
+            }
+
+            Spacer()
+
+            Text(title)
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundColor(.white)
+
+            Spacer()
+
+            Button(action: onNext) {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(width: 36, height: 36)
+                    .background(AzmyColors.backgroundCard)
+                    .cornerRadius(10)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+    }
+}
+
+// MARK: - Weekday Header
+struct WeekdayHeader: View {
+    private let days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(days, id: \.self) { day in
+                Text(day)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(AzmyColors.textTertiary)
+                    .frame(maxWidth: .infinity)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.bottom, 8)
+    }
+}
+
 // MARK: - Month Grid View
 struct MonthGridView: View {
     let currentMonth: Date
     @Binding var selectedDate: Date
     let events: [CalendarEvent]
+    let onDateTap: (Date) -> Void
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 7)
 
     var body: some View {
-        LazyVGrid(columns: columns, spacing: 4) {
+        LazyVGrid(columns: columns, spacing: 2) {
             ForEach(Array(daysInMonth().enumerated()), id: \.offset) { index, date in
                 if let date = date {
-                    DayCellView(
+                    MonthDayCell(
                         date: date,
                         isSelected: Calendar.current.isDate(date, inSameDayAs: selectedDate),
                         isToday: Calendar.current.isDateInToday(date),
                         events: eventsFor(date)
                     ) {
-                        selectedDate = date
+                        onDateTap(date)
                     }
                 } else {
-                    Color.clear
-                        .frame(height: 70)
+                    Color.clear.frame(height: 80)
                 }
             }
         }
-        .padding(.horizontal, 8)
+        .padding(.horizontal, 4)
     }
 
     private func daysInMonth() -> [Date?] {
@@ -211,10 +253,8 @@ struct MonthGridView: View {
         let startOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: currentMonth))!
         let range = calendar.range(of: .day, in: .month, for: startOfMonth)!
 
-        // Monday = 2 in gregorian calendar
         var firstWeekday = calendar.component(.weekday, from: startOfMonth)
-        // Convert to Monday-first (Mon=0, Tue=1, ..., Sun=6)
-        firstWeekday = (firstWeekday + 5) % 7
+        firstWeekday = (firstWeekday + 5) % 7 // Monday-first
 
         var days: [Date?] = Array(repeating: nil, count: firstWeekday)
 
@@ -236,8 +276,8 @@ struct MonthGridView: View {
     }
 }
 
-// MARK: - Day Cell View
-struct DayCellView: View {
+// MARK: - Month Day Cell
+struct MonthDayCell: View {
     let date: Date
     let isSelected: Bool
     let isToday: Bool
@@ -249,41 +289,40 @@ struct DayCellView: View {
             VStack(spacing: 2) {
                 // Day number
                 Text("\(Calendar.current.component(.day, from: date))")
-                    .font(AzmyFonts.body())
-                    .foregroundColor(textColor)
-                    .frame(width: 32, height: 32)
-                    .background(backgroundColor)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.white)
+                    .frame(width: 28, height: 28)
+                    .background(isSelected ? AzmyColors.accentBlue : (isToday ? AzmyColors.accentBlue.opacity(0.3) : Color.clear))
                     .clipShape(Circle())
 
-                // Event indicators (up to 2)
+                // Event labels (max 2 + overflow)
                 VStack(spacing: 1) {
                     ForEach(Array(events.prefix(2).enumerated()), id: \.offset) { _, event in
-                        Text(event.title)
-                            .font(.system(size: 8))
-                            .foregroundColor(eventColor(event))
+                        Text(event.title.prefix(6) + (event.title.count > 6 ? "..." : ""))
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundColor(eventColor(for: event))
                             .lineLimit(1)
-                            .frame(maxWidth: .infinity)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 2)
+                    }
+
+                    if events.count > 2 {
+                        Text("+\(events.count - 2)")
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundColor(AzmyColors.textTertiary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 2)
                     }
                 }
-                .frame(height: 20)
+                .frame(height: 36)
             }
-            .frame(height: 70)
+            .frame(height: 80)
+            .frame(maxWidth: .infinity)
         }
         .buttonStyle(.plain)
     }
 
-    private var textColor: Color {
-        if isSelected { return .white }
-        return .white
-    }
-
-    private var backgroundColor: Color {
-        if isSelected { return AzmyColors.accentBlue }
-        if isToday { return AzmyColors.accentBlue.opacity(0.3) }
-        return Color.clear
-    }
-
-    private func eventColor(_ event: CalendarEvent) -> Color {
+    private func eventColor(for event: CalendarEvent) -> Color {
         switch event.category {
         case .work: return .blue
         case .personal: return .orange
@@ -296,56 +335,65 @@ struct DayCellView: View {
     }
 }
 
-// MARK: - Week Day Selector
-struct WeekDaySelector: View {
+// MARK: - Week Day Strip
+struct WeekDayStrip: View {
     @Binding var selectedDate: Date
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 12) {
-                ForEach(weekDays(), id: \.self) { date in
-                    WeekDayCell(
-                        date: date,
-                        isSelected: Calendar.current.isDate(date, inSameDayAs: selectedDate),
-                        isToday: Calendar.current.isDateInToday(date)
-                    ) {
-                        selectedDate = date
-                    }
+        HStack(spacing: 0) {
+            ForEach(weekDays(), id: \.self) { date in
+                WeekDayItem(
+                    date: date,
+                    isSelected: Calendar.current.isDate(date, inSameDayAs: selectedDate)
+                ) {
+                    selectedDate = date
                 }
             }
-            .padding(.horizontal, 16)
         }
-        .padding(.vertical, 8)
+        .padding(.horizontal, 8)
+        .padding(.bottom, 8)
     }
 
     private func weekDays() -> [Date] {
         let calendar = Calendar.current
-        let startOfWeek = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: selectedDate))!
-        return (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: startOfWeek) }
+        // Get Monday of current week
+        var components = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: selectedDate)
+        components.weekday = 2 // Monday
+        let monday = calendar.date(from: components) ?? selectedDate
+        return (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: monday) }
     }
 }
 
-struct WeekDayCell: View {
+struct WeekDayItem: View {
     let date: Date
     let isSelected: Bool
-    let isToday: Bool
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             VStack(spacing: 4) {
                 Text(dayName)
-                    .font(AzmyFonts.caption())
+                    .font(.system(size: 11, weight: .medium))
                     .foregroundColor(AzmyColors.textTertiary)
 
                 Text("\(Calendar.current.component(.day, from: date))")
-                    .font(AzmyFonts.bodyLarge())
-                    .fontWeight(.medium)
-                    .foregroundColor(isSelected ? .white : (isToday ? AzmyColors.accentBlue : .white))
-                    .frame(width: 36, height: 36)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(isSelected ? .white : .white.opacity(0.8))
+                    .frame(width: 32, height: 32)
                     .background(isSelected ? AzmyColors.accentBlue : Color.clear)
                     .clipShape(Circle())
+
+                // Selection indicator
+                if isSelected {
+                    Rectangle()
+                        .fill(AzmyColors.accentBlue)
+                        .frame(width: 24, height: 3)
+                        .cornerRadius(1.5)
+                } else {
+                    Color.clear.frame(height: 3)
+                }
             }
+            .frame(maxWidth: .infinity)
         }
         .buttonStyle(.plain)
     }
@@ -357,66 +405,97 @@ struct WeekDayCell: View {
     }
 }
 
-// MARK: - Week Timeline View
-struct WeekTimelineView: View {
-    @Binding var selectedDate: Date
+// MARK: - Day Timeline View
+struct DayTimelineView: View {
+    let selectedDate: Date
     let events: [CalendarEvent]
     let onEventTap: (CalendarEvent) -> Void
 
+    private let startHour = 8
+    private let endHour = 22
+
     var body: some View {
         ScrollView {
-            VStack(spacing: 0) {
-                ForEach(8..<22, id: \.self) { hour in
-                    TimeSlotRow(
-                        hour: hour,
-                        events: eventsForHour(hour),
-                        onEventTap: onEventTap
-                    )
+            ZStack(alignment: .topLeading) {
+                // Time slots
+                VStack(spacing: 0) {
+                    ForEach(startHour..<endHour, id: \.self) { hour in
+                        TimeSlotRow(hour: hour)
+                    }
+                }
+
+                // Current time indicator
+                if Calendar.current.isDateInToday(selectedDate) {
+                    CurrentTimeIndicator(startHour: startHour)
+                }
+
+                // Events
+                ForEach(events) { event in
+                    EventBlock(event: event, startHour: startHour)
+                        .onTapGesture { onEventTap(event) }
                 }
             }
-            .padding(.horizontal, 16)
-        }
-    }
-
-    private func eventsForHour(_ hour: Int) -> [CalendarEvent] {
-        events.filter { event in
-            let eventHour = Calendar.current.component(.hour, from: event.startDate)
-            return Calendar.current.isDate(event.startDate, inSameDayAs: selectedDate) && eventHour == hour
+            .padding(.horizontal, 12)
         }
     }
 }
 
 struct TimeSlotRow: View {
     let hour: Int
-    let events: [CalendarEvent]
-    let onEventTap: (CalendarEvent) -> Void
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .top, spacing: 8) {
             Text(String(format: "%02d:00", hour))
-                .font(AzmyFonts.caption())
+                .font(.system(size: 12, weight: .regular))
                 .foregroundColor(AzmyColors.textTertiary)
-                .frame(width: 45, alignment: .trailing)
+                .frame(width: 40, alignment: .trailing)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack {
                 Rectangle()
-                    .fill(AzmyColors.separator)
+                    .fill(AzmyColors.separator.opacity(0.5))
                     .frame(height: 1)
-
-                ForEach(events) { event in
-                    EventBlockView(event: event)
-                        .onTapGesture { onEventTap(event) }
-                }
+                Spacer()
             }
         }
-        .frame(minHeight: 60)
+        .frame(height: 60)
     }
 }
 
-struct EventBlockView: View {
-    let event: CalendarEvent
+struct CurrentTimeIndicator: View {
+    let startHour: Int
 
     var body: some View {
+        let now = Date()
+        let hour = Calendar.current.component(.hour, from: now)
+        let minute = Calendar.current.component(.minute, from: now)
+        let offset = CGFloat(hour - startHour) * 60 + CGFloat(minute)
+
+        HStack(spacing: 0) {
+            Circle()
+                .fill(AzmyColors.accentBlue)
+                .frame(width: 10, height: 10)
+                .offset(x: 35)
+
+            Rectangle()
+                .fill(AzmyColors.accentBlue)
+                .frame(height: 2)
+        }
+        .offset(y: offset)
+    }
+}
+
+struct EventBlock: View {
+    let event: CalendarEvent
+    let startHour: Int
+
+    var body: some View {
+        let startHourOfEvent = Calendar.current.component(.hour, from: event.startDate)
+        let startMinute = Calendar.current.component(.minute, from: event.startDate)
+        let duration = event.endDate.timeIntervalSince(event.startDate) / 60
+
+        let yOffset = CGFloat(startHourOfEvent - startHour) * 60 + CGFloat(startMinute)
+        let height = max(CGFloat(duration), 30)
+
         HStack(spacing: 8) {
             Rectangle()
                 .fill(eventColor)
@@ -425,20 +504,25 @@ struct EventBlockView: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(timeRange)
-                    .font(AzmyFonts.caption())
+                    .font(.system(size: 11, weight: .medium))
                     .foregroundColor(.white.opacity(0.8))
 
                 Text(event.title)
-                    .font(AzmyFonts.bodySmall())
+                    .font(.system(size: 13, weight: .medium))
                     .foregroundColor(.white)
-                    .lineLimit(1)
+                    .lineLimit(2)
             }
 
             Spacer()
         }
         .padding(8)
-        .background(eventColor.opacity(0.3))
+        .frame(height: height)
+        .background(eventColor.opacity(0.25))
+        .background(AzmyColors.backgroundCard)
         .cornerRadius(8)
+        .padding(.leading, 52)
+        .padding(.trailing, 4)
+        .offset(y: yOffset)
     }
 
     private var eventColor: Color {
@@ -456,7 +540,106 @@ struct EventBlockView: View {
     private var timeRange: String {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm"
-        return "\(formatter.string(from: event.startDate)) – \(formatter.string(from: event.endDate))"
+        return "\(formatter.string(from: event.startDate)) — \(formatter.string(from: event.endDate))"
+    }
+}
+
+// MARK: - Event Preview Card
+struct EventPreviewCard: View {
+    let event: CalendarEvent
+    let onEdit: () -> Void
+    let onClose: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Title
+            Text(event.title)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(.white)
+
+            // Date
+            Text(formattedDate)
+                .font(.system(size: 14))
+                .foregroundColor(AzmyColors.textSecondary)
+
+            // Time
+            Text(event.formattedTime)
+                .font(.system(size: 14))
+                .foregroundColor(AzmyColors.textSecondary)
+
+            // Event preview block
+            HStack(spacing: 8) {
+                Rectangle()
+                    .fill(eventColor)
+                    .frame(width: 4)
+                    .cornerRadius(2)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(timeRange)
+                        .font(.system(size: 11))
+                        .foregroundColor(.white.opacity(0.7))
+                    Text(event.title)
+                        .font(.system(size: 13))
+                        .foregroundColor(.white)
+                }
+                Spacer()
+            }
+            .padding(10)
+            .background(eventColor.opacity(0.2))
+            .cornerRadius(8)
+
+            Spacer().frame(height: 8)
+
+            // Buttons
+            Button(action: onEdit) {
+                Text("Edit")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(AzmyColors.accentBlue)
+                    .cornerRadius(12)
+            }
+
+            Button(action: onClose) {
+                Text("Close")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(AzmyColors.backgroundCard)
+                    .cornerRadius(12)
+            }
+        }
+        .padding(20)
+        .background(AzmyColors.backgroundPrimary)
+        .cornerRadius(20)
+        .shadow(color: .black.opacity(0.3), radius: 20)
+        .padding(.horizontal, 20)
+    }
+
+    private var formattedDate: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE, MMMM d"
+        return formatter.string(from: event.startDate)
+    }
+
+    private var timeRange: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return "\(formatter.string(from: event.startDate)) — \(formatter.string(from: event.endDate))"
+    }
+
+    private var eventColor: Color {
+        switch event.category {
+        case .work: return .blue
+        case .personal: return .orange
+        case .health: return .green
+        case .social: return .pink
+        case .learning: return .yellow
+        case .focus: return .purple
+        case .other: return .gray
+        }
     }
 }
 
@@ -472,7 +655,10 @@ struct AddEventSheet: View {
     @State private var startDate: Date
     @State private var endDate: Date
     @State private var selectedColor: EventColor = .orange
+    @State private var showDatePicker: Bool = false
+    @State private var showTimePicker: Bool = false
     @State private var showColorPicker: Bool = false
+    @State private var editingStart: Bool = true
 
     init(selectedDate: Date, onCreate: @escaping (String, Date, Date, Bool, EventColor) -> Void) {
         self.selectedDate = selectedDate
@@ -480,8 +666,7 @@ struct AddEventSheet: View {
 
         let calendar = Calendar.current
         var components = calendar.dateComponents([.year, .month, .day], from: selectedDate)
-        let now = Date()
-        components.hour = calendar.component(.hour, from: now)
+        components.hour = 16
         components.minute = 0
 
         let start = calendar.date(from: components) ?? selectedDate
@@ -496,19 +681,27 @@ struct AddEventSheet: View {
                     .ignoresSafeArea()
 
                 ScrollView {
-                    VStack(spacing: 16) {
-                        // Title field
-                        TextField("Add title", text: $title)
-                            .font(AzmyFonts.headline2())
-                            .foregroundColor(.white)
-                            .padding(16)
-                            .background(AzmyColors.backgroundCard)
-                            .cornerRadius(12)
+                    VStack(spacing: 12) {
+                        // Title with color bar
+                        HStack(spacing: 12) {
+                            Rectangle()
+                                .fill(selectedColor.color)
+                                .frame(width: 4)
+                                .cornerRadius(2)
+
+                            TextField("Add title", text: $title)
+                                .font(.system(size: 20, weight: .semibold))
+                                .foregroundColor(.white)
+                        }
+                        .padding(16)
+                        .frame(height: 56)
+                        .background(AzmyColors.backgroundCard)
+                        .cornerRadius(12)
 
                         // All day toggle
                         HStack {
                             Text("All day")
-                                .font(AzmyFonts.body())
+                                .font(.system(size: 16))
                                 .foregroundColor(.white)
                             Spacer()
                             Toggle("", isOn: $isAllDay)
@@ -518,73 +711,104 @@ struct AddEventSheet: View {
                         .background(AzmyColors.backgroundCard)
                         .cornerRadius(12)
 
-                        // Start date/time
+                        // Start row
                         VStack(spacing: 0) {
-                            HStack {
-                                Text("Start")
-                                    .font(AzmyFonts.body())
-                                    .foregroundColor(.white)
-                                Spacer()
-                                DatePicker("", selection: $startDate, displayedComponents: isAllDay ? .date : [.date, .hourAndMinute])
-                                    .labelsHidden()
-                                    .colorScheme(.dark)
-                                    .tint(AzmyColors.accentBlue)
-                            }
-                            .padding(16)
+                            DateTimeRow(
+                                label: "Start",
+                                date: startDate,
+                                showTime: !isAllDay,
+                                onDateTap: {
+                                    editingStart = true
+                                    showDatePicker.toggle()
+                                    showTimePicker = false
+                                },
+                                onTimeTap: {
+                                    editingStart = true
+                                    showTimePicker.toggle()
+                                    showDatePicker = false
+                                }
+                            )
 
-                            Divider()
-                                .background(AzmyColors.separator)
-
-                            HStack {
-                                Text("End")
-                                    .font(AzmyFonts.body())
-                                    .foregroundColor(.white)
-                                Spacer()
-                                DatePicker("", selection: $endDate, in: startDate..., displayedComponents: isAllDay ? .date : [.date, .hourAndMinute])
-                                    .labelsHidden()
-                                    .colorScheme(.dark)
-                                    .tint(AzmyColors.accentBlue)
+                            if showDatePicker && editingStart {
+                                InlineDatePicker(date: $startDate)
                             }
-                            .padding(16)
+
+                            if showTimePicker && editingStart {
+                                InlineTimePicker(date: $startDate)
+                            }
+                        }
+                        .background(AzmyColors.backgroundCard)
+                        .cornerRadius(12)
+
+                        // End row
+                        VStack(spacing: 0) {
+                            DateTimeRow(
+                                label: "End",
+                                date: endDate,
+                                showTime: !isAllDay,
+                                onDateTap: {
+                                    editingStart = false
+                                    showDatePicker.toggle()
+                                    showTimePicker = false
+                                },
+                                onTimeTap: {
+                                    editingStart = false
+                                    showTimePicker.toggle()
+                                    showDatePicker = false
+                                }
+                            )
+
+                            if showDatePicker && !editingStart {
+                                InlineDatePicker(date: $endDate)
+                            }
+
+                            if showTimePicker && !editingStart {
+                                InlineTimePicker(date: $endDate)
+                            }
                         }
                         .background(AzmyColors.backgroundCard)
                         .cornerRadius(12)
 
                         // Color picker
                         VStack(spacing: 0) {
-                            Button(action: { showColorPicker.toggle() }) {
+                            Button(action: { withAnimation { showColorPicker.toggle() } }) {
                                 HStack {
-                                    Circle()
+                                    RoundedRectangle(cornerRadius: 4)
                                         .fill(selectedColor.color)
-                                        .frame(width: 16, height: 16)
+                                        .frame(width: 20, height: 20)
+
                                     Text("Color: \(selectedColor.name)")
-                                        .font(AzmyFonts.body())
+                                        .font(.system(size: 16))
                                         .foregroundColor(.white)
+
                                     Spacer()
-                                    Image(systemName: showColorPicker ? "chevron.up" : "chevron.down")
+
+                                    Image(systemName: "chevron.down")
+                                        .font(.system(size: 12))
                                         .foregroundColor(AzmyColors.textTertiary)
+                                        .rotationEffect(.degrees(showColorPicker ? 180 : 0))
                                 }
                                 .padding(16)
                             }
 
                             if showColorPicker {
-                                Divider()
-                                    .background(AzmyColors.separator)
-
                                 VStack(spacing: 0) {
                                     ForEach(EventColor.allCases, id: \.self) { color in
                                         Button(action: {
                                             selectedColor = color
-                                            showColorPicker = false
+                                            withAnimation { showColorPicker = false }
                                         }) {
                                             HStack {
-                                                Circle()
+                                                RoundedRectangle(cornerRadius: 4)
                                                     .fill(color.color)
-                                                    .frame(width: 16, height: 16)
+                                                    .frame(width: 20, height: 20)
+
                                                 Text(color.name)
-                                                    .font(AzmyFonts.body())
+                                                    .font(.system(size: 16))
                                                     .foregroundColor(.white)
+
                                                 Spacer()
+
                                                 if selectedColor == color {
                                                     Image(systemName: "checkmark")
                                                         .foregroundColor(AzmyColors.accentBlue)
@@ -600,11 +824,12 @@ struct AddEventSheet: View {
                         .background(AzmyColors.backgroundCard)
                         .cornerRadius(12)
 
+                        Spacer().frame(height: 20)
+
                         // Add event button
                         Button(action: saveEvent) {
                             Text("Add event")
-                                .font(AzmyFonts.bodyLarge())
-                                .fontWeight(.semibold)
+                                .font(.system(size: 16, weight: .semibold))
                                 .foregroundColor(.white)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 16)
@@ -612,7 +837,6 @@ struct AddEventSheet: View {
                                 .cornerRadius(12)
                         }
                         .disabled(title.isEmpty)
-                        .padding(.top, 8)
                     }
                     .padding(16)
                 }
@@ -626,103 +850,98 @@ struct AddEventSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { saveEvent() }
                         .foregroundColor(title.isEmpty ? AzmyColors.textTertiary : AzmyColors.accentBlue)
+                        .fontWeight(.semibold)
                         .disabled(title.isEmpty)
                 }
             }
             .toolbarBackground(AzmyColors.backgroundPrimary, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
         }
-        .presentationDetents([.large])
     }
 
     private func saveEvent() {
-        let finalEnd = isAllDay
-            ? Calendar.current.date(byAdding: .day, value: 1, to: startDate) ?? endDate
-            : endDate
-        onCreate(title, startDate, finalEnd, isAllDay, selectedColor)
+        onCreate(title, startDate, endDate, isAllDay, selectedColor)
         dismiss()
     }
 }
 
-// MARK: - Event Preview Sheet
-struct EventPreviewSheet: View {
-    let event: CalendarEvent
-    let onDismiss: () -> Void
-
-    @Environment(\.dismiss) private var dismiss
+// MARK: - Date Time Row
+struct DateTimeRow: View {
+    let label: String
+    let date: Date
+    let showTime: Bool
+    let onDateTap: () -> Void
+    let onTimeTap: () -> Void
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Handle bar
-            RoundedRectangle(cornerRadius: 2)
-                .fill(Color.gray.opacity(0.5))
-                .frame(width: 36, height: 4)
-                .padding(.top, 8)
+        HStack {
+            Text(label)
+                .font(.system(size: 16))
+                .foregroundColor(.white)
 
-            VStack(alignment: .leading, spacing: 12) {
-                // Event title
-                Text(event.title)
-                    .font(AzmyFonts.headline2())
-                    .foregroundColor(.white)
+            Spacer()
 
-                // Date
+            Button(action: onDateTap) {
                 Text(formattedDate)
-                    .font(AzmyFonts.body())
-                    .foregroundColor(AzmyColors.textSecondary)
+                    .font(.system(size: 14))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(AzmyColors.backgroundSecondary)
+                    .cornerRadius(8)
+            }
 
-                // Time
-                Text(event.formattedTime)
-                    .font(AzmyFonts.body())
-                    .foregroundColor(AzmyColors.textSecondary)
-
-                // Notes if available
-                if let notes = event.notes, !notes.isEmpty {
-                    Text(notes)
-                        .font(AzmyFonts.bodySmall())
-                        .foregroundColor(AzmyColors.textTertiary)
-                        .padding(.top, 4)
-                }
-
-                Spacer()
-
-                // Buttons
-                VStack(spacing: 8) {
-                    Button(action: {}) {
-                        Text("Edit")
-                            .font(AzmyFonts.bodyLarge())
-                            .fontWeight(.semibold)
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(AzmyColors.accentBlue)
-                            .cornerRadius(12)
-                    }
-
-                    Button(action: {
-                        onDismiss()
-                        dismiss()
-                    }) {
-                        Text("Close")
-                            .font(AzmyFonts.bodyLarge())
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(AzmyColors.backgroundCard)
-                            .cornerRadius(12)
-                    }
+            if showTime {
+                Button(action: onTimeTap) {
+                    Text(formattedTime)
+                        .font(.system(size: 14))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(AzmyColors.backgroundSecondary)
+                        .cornerRadius(8)
                 }
             }
-            .padding(20)
         }
-        .background(AzmyColors.backgroundPrimary)
-        .presentationDetents([.height(320)])
-        .presentationDragIndicator(.hidden)
+        .padding(16)
     }
 
     private var formattedDate: String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "EEEE, MMMM d"
-        return formatter.string(from: event.startDate)
+        formatter.dateFormat = "d MMM, yyyy"
+        return formatter.string(from: date)
+    }
+
+    private var formattedTime: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
+    }
+}
+
+// MARK: - Inline Date Picker
+struct InlineDatePicker: View {
+    @Binding var date: Date
+
+    var body: some View {
+        DatePicker("", selection: $date, displayedComponents: .date)
+            .datePickerStyle(.graphical)
+            .colorScheme(.dark)
+            .tint(AzmyColors.accentBlue)
+            .padding(.horizontal, 8)
+    }
+}
+
+// MARK: - Inline Time Picker
+struct InlineTimePicker: View {
+    @Binding var date: Date
+
+    var body: some View {
+        DatePicker("", selection: $date, displayedComponents: .hourAndMinute)
+            .datePickerStyle(.wheel)
+            .colorScheme(.dark)
+            .frame(height: 150)
+            .padding(.horizontal, 8)
     }
 }
 
@@ -739,12 +958,12 @@ enum EventColor: String, CaseIterable {
 
     var color: Color {
         switch self {
-        case .orange: return Color.orange
-        case .pink: return Color.pink
-        case .green: return Color.green
-        case .blue: return Color.blue
-        case .yellow: return Color.yellow
-        case .red: return Color.red
+        case .orange: return .orange
+        case .pink: return .pink
+        case .green: return .green
+        case .blue: return .blue
+        case .yellow: return .yellow
+        case .red: return .red
         }
     }
 }
