@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import SwiftUI
 
 // MARK: - Calendar Event
 struct CalendarEvent: Identifiable, Codable, Hashable {
@@ -17,6 +18,9 @@ struct CalendarEvent: Identifiable, Codable, Hashable {
     var category: EventCategory
     var isAIGenerated: Bool
     var calendarIdentifier: String?
+    var colorRed: Double
+    var colorGreen: Double
+    var colorBlue: Double
 
     init(
         id: UUID = UUID(),
@@ -28,7 +32,10 @@ struct CalendarEvent: Identifiable, Codable, Hashable {
         notes: String? = nil,
         category: EventCategory = .other,
         isAIGenerated: Bool = false,
-        calendarIdentifier: String? = nil
+        calendarIdentifier: String? = nil,
+        colorRed: Double = 0.3,
+        colorGreen: Double = 0.6,
+        colorBlue: Double = 1.0
     ) {
         self.id = id
         self.title = title
@@ -40,6 +47,13 @@ struct CalendarEvent: Identifiable, Codable, Hashable {
         self.category = category
         self.isAIGenerated = isAIGenerated
         self.calendarIdentifier = calendarIdentifier
+        self.colorRed = colorRed
+        self.colorGreen = colorGreen
+        self.colorBlue = colorBlue
+    }
+
+    var color: Color {
+        Color(red: colorRed, green: colorGreen, blue: colorBlue)
     }
 
     var duration: TimeInterval {

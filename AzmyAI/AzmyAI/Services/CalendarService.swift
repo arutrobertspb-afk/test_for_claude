@@ -5,6 +5,7 @@
 
 import Foundation
 import EventKit
+import UIKit
 
 class CalendarService: ObservableObject {
     private let eventStore = EKEventStore()
@@ -75,7 +76,10 @@ class CalendarService: ObservableObject {
         let ekEvents = eventStore.events(matching: predicate)
 
         let calendarEvents = ekEvents.map { event -> CalendarEvent in
-            CalendarEvent(
+            // Extract calendar color
+            let (red, green, blue) = extractCalendarColor(from: event)
+
+            return CalendarEvent(
                 id: UUID(),
                 title: event.title ?? "Untitled",
                 startDate: event.startDate,
@@ -85,7 +89,10 @@ class CalendarService: ObservableObject {
                 notes: event.notes,
                 category: categorizeEvent(event),
                 isAIGenerated: false,
-                calendarIdentifier: event.eventIdentifier
+                calendarIdentifier: event.eventIdentifier,
+                colorRed: red,
+                colorGreen: green,
+                colorBlue: blue
             )
         }
 
@@ -248,6 +255,25 @@ class CalendarService: ObservableObject {
         }
 
         return freeSlots
+    }
+
+    // MARK: - Extract Calendar Color
+    private func extractCalendarColor(from event: EKEvent) -> (Double, Double, Double) {
+        guard let calendar = event.calendar,
+              let cgColor = calendar.cgColor else {
+            // Default blue color
+            return (0.3, 0.6, 1.0)
+        }
+
+        let uiColor = UIColor(cgColor: cgColor)
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+
+        uiColor.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+
+        return (Double(red), Double(green), Double(blue))
     }
 
     // MARK: - Categorize Event

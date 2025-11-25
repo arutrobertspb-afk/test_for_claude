@@ -124,15 +124,6 @@ struct CalendarView: View {
                 await plannerViewModel.fetchEventsForMonth(newMonth)
             }
         }
-        .onChange(of: showWeekView) { _, isWeekView in
-            Task {
-                if isWeekView {
-                    await plannerViewModel.fetchEventsForSelectedDate()
-                } else {
-                    await plannerViewModel.fetchEventsForMonth(currentMonth)
-                }
-            }
-        }
         .onReceive(NotificationCenter.default.publisher(for: .calendarEventsDidChange)) { _ in
             Task {
                 await plannerViewModel.fetchEventsForMonth(currentMonth)
@@ -362,7 +353,7 @@ struct MonthDayCell: View {
                 // Event pills (colored badges like Google Calendar)
                 VStack(spacing: 2) {
                     ForEach(Array(events.prefix(maxVisibleEvents).enumerated()), id: \.offset) { _, event in
-                        EventPill(title: event.title, color: eventColor(for: event))
+                        EventPill(title: event.title, color: event.color)
                     }
 
                     if events.count > maxVisibleEvents {
@@ -381,18 +372,6 @@ struct MonthDayCell: View {
             .frame(maxWidth: .infinity)
         }
         .buttonStyle(.plain)
-    }
-
-    private func eventColor(for event: CalendarEvent) -> Color {
-        switch event.category {
-        case .work: return .blue
-        case .personal: return .orange
-        case .health: return .green
-        case .social: return .pink
-        case .learning: return .yellow
-        case .focus: return .purple
-        case .other: return .gray
-        }
     }
 }
 
@@ -578,12 +557,14 @@ struct EventBlock: View {
         let startMinute = Calendar.current.component(.minute, from: event.startDate)
         let duration = event.endDate.timeIntervalSince(event.startDate) / 60
 
-        let yOffset = CGFloat(startHourOfEvent - startHour) * 60 + CGFloat(startMinute)
+        // Clamp to visible range
+        let effectiveStartHour = max(startHourOfEvent, startHour)
+        let yOffset = CGFloat(effectiveStartHour - startHour) * 60 + (startHourOfEvent >= startHour ? CGFloat(startMinute) : 0)
         let height = max(CGFloat(duration), 30)
 
         HStack(spacing: 8) {
             Rectangle()
-                .fill(eventColor)
+                .fill(event.color)
                 .frame(width: 4)
                 .cornerRadius(2)
 
@@ -602,24 +583,12 @@ struct EventBlock: View {
         }
         .padding(8)
         .frame(height: height)
-        .background(eventColor.opacity(0.25))
+        .background(event.color.opacity(0.25))
         .background(AzmyColors.backgroundCard)
         .cornerRadius(8)
         .padding(.leading, 52)
         .padding(.trailing, 4)
         .offset(y: yOffset)
-    }
-
-    private var eventColor: Color {
-        switch event.category {
-        case .work: return .blue
-        case .personal: return .orange
-        case .health: return .green
-        case .social: return .pink
-        case .learning: return .yellow
-        case .focus: return .purple
-        case .other: return .gray
-        }
     }
 
     private var timeRange: String {
