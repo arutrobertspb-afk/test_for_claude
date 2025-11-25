@@ -102,14 +102,14 @@ struct CalendarView: View {
             }
         }
         .onAppear {
-            Task {
-                await plannerViewModel.fetchEventsForSelectedDate()
-            }
+            plannerViewModel.selectDate(selectedDate)
+        }
+        .onChange(of: selectedDate) { _, newDate in
+            plannerViewModel.selectDate(newDate)
         }
         .onReceive(NotificationCenter.default.publisher(for: .calendarEventsDidChange)) { _ in
-            Task {
-                await plannerViewModel.fetchEventsForSelectedDate()
-            }
+            print("📅 CalendarView: Received calendarEventsDidChange notification")
+            plannerViewModel.selectDate(selectedDate)
         }
     }
 
@@ -207,7 +207,7 @@ struct MonthCalendarView: View {
 
     var body: some View {
         LazyVGrid(columns: columns, spacing: AzmySpacing.xs) {
-            ForEach(daysInMonth(), id: \.self) { date in
+            ForEach(Array(daysInMonth().enumerated()), id: \.offset) { index, date in
                 if let date = date {
                     DayCell(
                         date: date,
