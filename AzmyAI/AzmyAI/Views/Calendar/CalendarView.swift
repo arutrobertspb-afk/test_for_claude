@@ -282,23 +282,63 @@ struct MonthGridView: View {
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 7)
 
     var body: some View {
-        LazyVGrid(columns: columns, spacing: 2) {
-            ForEach(Array(daysInMonth().enumerated()), id: \.offset) { index, date in
-                if let date = date {
-                    MonthDayCell(
-                        date: date,
-                        isSelected: Calendar.current.isDate(date, inSameDayAs: selectedDate),
-                        isToday: Calendar.current.isDateInToday(date),
-                        events: eventsFor(date)
-                    ) {
-                        onDateTap(date)
+        VStack(spacing: 0) {
+            let weeks = weeksInMonth()
+            ForEach(Array(weeks.enumerated()), id: \.offset) { weekIndex, week in
+                // Week row
+                HStack(spacing: 0) {
+                    ForEach(Array(week.enumerated()), id: \.offset) { dayIndex, date in
+                        if let date = date {
+                            MonthDayCell(
+                                date: date,
+                                isSelected: Calendar.current.isDate(date, inSameDayAs: selectedDate),
+                                isToday: Calendar.current.isDateInToday(date),
+                                events: eventsFor(date)
+                            ) {
+                                onDateTap(date)
+                            }
+                            .frame(maxWidth: .infinity)
+                        } else {
+                            Color.clear
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 72)
+                        }
                     }
-                } else {
-                    Color.clear.frame(height: 90)
+                }
+
+                // Divider after each week (except last)
+                if weekIndex < weeks.count - 1 {
+                    Rectangle()
+                        .fill(AzmyColors.separator.opacity(0.3))
+                        .frame(height: 1)
+                        .padding(.horizontal, 8)
                 }
             }
         }
         .padding(.horizontal, 4)
+    }
+
+    private func weeksInMonth() -> [[Date?]] {
+        let days = daysInMonth()
+        var weeks: [[Date?]] = []
+        var currentWeek: [Date?] = []
+
+        for (index, date) in days.enumerated() {
+            currentWeek.append(date)
+            if currentWeek.count == 7 {
+                weeks.append(currentWeek)
+                currentWeek = []
+            }
+        }
+
+        if !currentWeek.isEmpty {
+            while currentWeek.count < 7 {
+                currentWeek.append(nil)
+            }
+            weeks.append(currentWeek)
+        }
+
+        return weeks
     }
 
     private func daysInMonth() -> [Date?] {
@@ -341,34 +381,32 @@ struct MonthDayCell: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 4) {
+            VStack(spacing: 2) {
                 // Day number
                 Text("\(Calendar.current.component(.day, from: date))")
-                    .font(.system(size: 16, weight: isToday ? .bold : .medium))
+                    .font(.system(size: 15, weight: isToday ? .bold : .medium))
                     .foregroundColor(.white)
-                    .frame(width: 32, height: 32)
+                    .frame(width: 28, height: 28)
                     .background(isToday ? AzmyColors.accentBlue : Color.clear)
                     .clipShape(Circle())
 
                 // Event pills (colored badges like Google Calendar)
-                VStack(spacing: 2) {
+                VStack(spacing: 1) {
                     ForEach(Array(events.prefix(maxVisibleEvents).enumerated()), id: \.offset) { _, event in
                         EventPill(title: event.title, color: event.color)
                     }
 
                     if events.count > maxVisibleEvents {
                         Text("+\(events.count - maxVisibleEvents)")
-                            .font(.system(size: 9, weight: .medium))
+                            .font(.system(size: 8, weight: .medium))
                             .foregroundColor(AzmyColors.textTertiary)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.leading, 2)
                     }
                 }
-                .frame(minHeight: 40, alignment: .top)
-
-                Spacer(minLength: 0)
+                .frame(minHeight: 32, alignment: .top)
             }
-            .frame(height: 90)
+            .frame(height: 72)
             .frame(maxWidth: .infinity)
         }
         .buttonStyle(.plain)
