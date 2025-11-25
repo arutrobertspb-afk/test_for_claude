@@ -2,6 +2,8 @@
 //  PlannerView.swift
 //  AzmyAI
 //
+//  Dark theme planner interface
+//
 
 import SwiftUI
 
@@ -14,42 +16,51 @@ struct PlannerView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: Spacing.md) {
-                    // Date navigation
-                    DateNavigationBar(
-                        dateString: plannerViewModel.selectedDateFormatted,
-                        onPrevious: { plannerViewModel.goToPreviousDay() },
-                        onNext: { plannerViewModel.goToNextDay() },
-                        onToday: { plannerViewModel.goToToday() }
-                    )
+            ZStack {
+                AzmyColors.backgroundPrimary
+                    .ignoresSafeArea()
 
-                    // AI Recommendations
-                    if !plannerViewModel.recommendations.isEmpty {
-                        RecommendationsSection(
-                            recommendations: plannerViewModel.recommendations,
-                            onDismiss: { plannerViewModel.dismissRecommendation($0) }
+                ScrollView {
+                    VStack(spacing: AzmySpacing.md) {
+                        // Date navigation
+                        DateNavigationBar(
+                            dateString: plannerViewModel.selectedDateFormatted,
+                            onPrevious: { plannerViewModel.goToPreviousDay() },
+                            onNext: { plannerViewModel.goToNextDay() },
+                            onToday: { plannerViewModel.goToToday() }
+                        )
+
+                        // AI Recommendations
+                        if !plannerViewModel.recommendations.isEmpty {
+                            RecommendationsSection(
+                                recommendations: plannerViewModel.recommendations,
+                                onDismiss: { plannerViewModel.dismissRecommendation($0) }
+                            )
+                        }
+
+                        // Today's Schedule
+                        ScheduleSection(
+                            events: plannerViewModel.events,
+                            onAddEvent: { showEventSheet = true }
+                        )
+
+                        // Tasks
+                        TasksSection(
+                            tasks: plannerViewModel.todayTasks,
+                            onToggle: { plannerViewModel.toggleTaskCompletion($0) },
+                            onDelete: { plannerViewModel.deleteTask($0) },
+                            onAdd: { showTaskSheet = true }
                         )
                     }
-
-                    // Today's Schedule
-                    ScheduleSection(
-                        events: plannerViewModel.events,
-                        onAddEvent: { showEventSheet = true }
-                    )
-
-                    // Tasks
-                    TasksSection(
-                        tasks: plannerViewModel.todayTasks,
-                        onToggle: { plannerViewModel.toggleTaskCompletion($0) },
-                        onDelete: { plannerViewModel.deleteTask($0) },
-                        onAdd: { showTaskSheet = true }
-                    )
+                    .padding(.horizontal, AzmySpacing.md)
+                    .padding(.bottom, AzmySpacing.xl)
                 }
-                .padding(.horizontal, Spacing.md)
-                .padding(.bottom, Spacing.xl)
             }
             .navigationTitle("Planner")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(AzmyColors.backgroundPrimary, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
@@ -66,7 +77,7 @@ struct PlannerView: View {
                         }
                     } label: {
                         Image(systemName: "plus.circle.fill")
-                            .foregroundStyle(Color.azuryGradient)
+                            .foregroundStyle(AzmyColors.gradientBlue)
                     }
                 }
             }
@@ -111,14 +122,15 @@ struct DateNavigationBar: View {
             Button(action: onPrevious) {
                 Image(systemName: "chevron.left")
                     .font(.title3)
-                    .foregroundColor(.azuryBlue)
+                    .foregroundColor(AzmyColors.accentBlue)
             }
 
             Spacer()
 
             Button(action: onToday) {
                 Text(dateString)
-                    .font(.azuryTitle3)
+                    .font(AzmyFonts.headline3())
+                    .foregroundColor(AzmyColors.textPrimary)
             }
             .buttonStyle(.plain)
 
@@ -127,10 +139,10 @@ struct DateNavigationBar: View {
             Button(action: onNext) {
                 Image(systemName: "chevron.right")
                     .font(.title3)
-                    .foregroundColor(.azuryBlue)
+                    .foregroundColor(AzmyColors.accentBlue)
             }
         }
-        .padding(.vertical, Spacing.sm)
+        .padding(.vertical, AzmySpacing.sm)
     }
 }
 
@@ -140,12 +152,13 @@ struct RecommendationsSection: View {
     let onDismiss: (AIRecommendation) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
+        VStack(alignment: .leading, spacing: AzmySpacing.sm) {
             HStack {
                 Image(systemName: "sparkles")
-                    .foregroundStyle(Color.azuryGradient)
+                    .foregroundStyle(AzmyColors.gradientBlue)
                 Text("AI Insights")
-                    .font(.azuryHeadline)
+                    .font(AzmyFonts.headline3())
+                    .foregroundColor(AzmyColors.textPrimary)
             }
 
             ForEach(recommendations.filter { !$0.isDismissed }) { rec in
@@ -162,19 +175,20 @@ struct RecommendationCard: View {
     let onDismiss: () -> Void
 
     var body: some View {
-        HStack(spacing: Spacing.sm) {
+        HStack(spacing: AzmySpacing.sm) {
             Image(systemName: recommendation.type.icon)
                 .font(.title2)
-                .foregroundStyle(Color.azuryGradient)
+                .foregroundStyle(AzmyColors.gradientBlue)
                 .frame(width: 40)
 
-            VStack(alignment: .leading, spacing: Spacing.xxs) {
+            VStack(alignment: .leading, spacing: AzmySpacing.xxs) {
                 Text(recommendation.title)
-                    .font(.azuryHeadline)
+                    .font(AzmyFonts.headline3())
+                    .foregroundColor(AzmyColors.textPrimary)
 
                 Text(recommendation.description)
-                    .font(.azuryCaption)
-                    .foregroundColor(.secondary)
+                    .font(AzmyFonts.caption())
+                    .foregroundColor(AzmyColors.textSecondary)
             }
 
             Spacer()
@@ -182,12 +196,12 @@ struct RecommendationCard: View {
             Button(action: onDismiss) {
                 Image(systemName: "xmark")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(AzmyColors.textSecondary)
             }
         }
-        .padding(Spacing.md)
-        .background(Color.azuryGradient.opacity(0.08))
-        .cornerRadius(CornerRadius.medium)
+        .padding(AzmySpacing.md)
+        .background(AzmyColors.accentBlue.opacity(0.15))
+        .cornerRadius(AzmyRadius.medium)
     }
 }
 
@@ -197,17 +211,18 @@ struct ScheduleSection: View {
     let onAddEvent: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
+        VStack(alignment: .leading, spacing: AzmySpacing.sm) {
             HStack {
                 Text("Schedule")
-                    .font(.azuryHeadline)
+                    .font(AzmyFonts.headline3())
+                    .foregroundColor(AzmyColors.textPrimary)
 
                 Spacer()
 
                 Button(action: onAddEvent) {
                     Text("Add")
-                        .font(.azuryFootnote)
-                        .foregroundColor(.azuryBlue)
+                        .font(AzmyFonts.bodySmall())
+                        .foregroundColor(AzmyColors.accentBlue)
                 }
             }
 
@@ -226,23 +241,23 @@ struct EmptyScheduleCard: View {
     let onAdd: () -> Void
 
     var body: some View {
-        VStack(spacing: Spacing.sm) {
+        VStack(spacing: AzmySpacing.sm) {
             Image(systemName: "calendar.badge.plus")
                 .font(.largeTitle)
-                .foregroundColor(.secondary)
+                .foregroundColor(AzmyColors.textSecondary)
 
             Text("No events today")
-                .font(.azurySubheadline)
-                .foregroundColor(.secondary)
+                .font(AzmyFonts.bodyLarge())
+                .foregroundColor(AzmyColors.textSecondary)
 
             Button("Add Event", action: onAdd)
-                .font(.azuryFootnote)
-                .foregroundColor(.azuryBlue)
+                .font(AzmyFonts.bodySmall())
+                .foregroundColor(AzmyColors.accentBlue)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, Spacing.xl)
-        .background(Color.azurySecondaryBackground)
-        .cornerRadius(CornerRadius.medium)
+        .padding(.vertical, AzmySpacing.xl)
+        .background(AzmyColors.backgroundCard)
+        .cornerRadius(AzmyRadius.medium)
     }
 }
 
@@ -250,34 +265,35 @@ struct EventCard: View {
     let event: CalendarEvent
 
     var body: some View {
-        HStack(spacing: Spacing.sm) {
+        HStack(spacing: AzmySpacing.sm) {
             // Time indicator
             Rectangle()
                 .fill(colorForCategory(event.category))
                 .frame(width: 4)
                 .cornerRadius(2)
 
-            VStack(alignment: .leading, spacing: Spacing.xxs) {
+            VStack(alignment: .leading, spacing: AzmySpacing.xxs) {
                 Text(event.title)
-                    .font(.azuryHeadline)
+                    .font(AzmyFonts.headline3())
+                    .foregroundColor(AzmyColors.textPrimary)
                     .lineLimit(1)
 
-                HStack(spacing: Spacing.xs) {
+                HStack(spacing: AzmySpacing.xs) {
                     Image(systemName: "clock")
                         .font(.caption)
                     Text(event.formattedTime)
-                        .font(.azuryCaption)
+                        .font(AzmyFonts.caption())
                 }
-                .foregroundColor(.secondary)
+                .foregroundColor(AzmyColors.textSecondary)
 
                 if let location = event.location, !location.isEmpty {
-                    HStack(spacing: Spacing.xs) {
+                    HStack(spacing: AzmySpacing.xs) {
                         Image(systemName: "location")
                             .font(.caption)
                         Text(location)
-                            .font(.azuryCaption)
+                            .font(AzmyFonts.caption())
                     }
-                    .foregroundColor(.secondary)
+                    .foregroundColor(AzmyColors.textSecondary)
                 }
             }
 
@@ -286,9 +302,9 @@ struct EventCard: View {
             Image(systemName: event.category.icon)
                 .foregroundColor(colorForCategory(event.category))
         }
-        .padding(Spacing.md)
-        .background(Color.azurySecondaryBackground)
-        .cornerRadius(CornerRadius.medium)
+        .padding(AzmySpacing.md)
+        .background(AzmyColors.backgroundCard)
+        .cornerRadius(AzmyRadius.medium)
     }
 
     private func colorForCategory(_ category: EventCategory) -> Color {
@@ -312,16 +328,17 @@ struct TasksSection: View {
     let onAdd: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
+        VStack(alignment: .leading, spacing: AzmySpacing.sm) {
             HStack {
                 Text("Tasks")
-                    .font(.azuryHeadline)
+                    .font(AzmyFonts.headline3())
+                    .foregroundColor(AzmyColors.textPrimary)
 
                 Spacer()
 
                 Text("\(tasks.filter { $0.isCompleted }.count)/\(tasks.count)")
-                    .font(.azuryCaption)
-                    .foregroundColor(.secondary)
+                    .font(AzmyFonts.caption())
+                    .foregroundColor(AzmyColors.textSecondary)
             }
 
             ForEach(tasks) { task in
@@ -339,10 +356,10 @@ struct TasksSection: View {
                     Image(systemName: "plus.circle")
                     Text("Add task")
                 }
-                .font(.azurySubheadline)
-                .foregroundColor(.azuryBlue)
+                .font(AzmyFonts.bodyLarge())
+                .foregroundColor(AzmyColors.accentBlue)
             }
-            .padding(.top, Spacing.xs)
+            .padding(.top, AzmySpacing.xs)
         }
     }
 }
@@ -353,27 +370,27 @@ struct TaskCard: View {
     let onDelete: () -> Void
 
     var body: some View {
-        HStack(spacing: Spacing.sm) {
+        HStack(spacing: AzmySpacing.sm) {
             Button(action: onToggle) {
                 Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
                     .font(.title3)
-                    .foregroundColor(task.isCompleted ? .green : .secondary)
+                    .foregroundColor(task.isCompleted ? .green : AzmyColors.textSecondary)
             }
 
-            VStack(alignment: .leading, spacing: Spacing.xxs) {
+            VStack(alignment: .leading, spacing: AzmySpacing.xxs) {
                 Text(task.title)
-                    .font(.azuryBody)
+                    .font(AzmyFonts.body())
                     .strikethrough(task.isCompleted)
-                    .foregroundColor(task.isCompleted ? .secondary : .primary)
+                    .foregroundColor(task.isCompleted ? AzmyColors.textSecondary : AzmyColors.textPrimary)
 
                 if task.isAISuggested {
-                    HStack(spacing: Spacing.xxs) {
+                    HStack(spacing: AzmySpacing.xxs) {
                         Image(systemName: "sparkles")
                             .font(.caption2)
                         Text("AI suggested")
-                            .font(.azuryCaption)
+                            .font(AzmyFonts.caption())
                     }
-                    .foregroundColor(.azuryPurple)
+                    .foregroundColor(AzmyColors.accentPurple)
                 }
             }
 
@@ -383,9 +400,9 @@ struct TaskCard: View {
                 .font(.caption)
                 .foregroundColor(colorForPriority(task.priority))
         }
-        .padding(Spacing.sm)
-        .background(Color.azurySecondaryBackground)
-        .cornerRadius(CornerRadius.small)
+        .padding(AzmySpacing.sm)
+        .background(AzmyColors.backgroundCard)
+        .cornerRadius(AzmyRadius.small)
         .swipeActions(edge: .trailing) {
             Button(role: .destructive, action: onDelete) {
                 Label("Delete", systemImage: "trash")
@@ -512,4 +529,5 @@ struct CreateTaskSheet: View {
     PlannerView()
         .environmentObject(PlannerViewModel())
         .environmentObject(UserProfileViewModel())
+        .preferredColorScheme(.dark)
 }

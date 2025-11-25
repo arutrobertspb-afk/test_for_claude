@@ -2,6 +2,8 @@
 //  OnboardingView.swift
 //  AzmyAI
 //
+//  Dark theme onboarding flow
+//
 
 import SwiftUI
 
@@ -19,9 +21,12 @@ struct OnboardingView: View {
 
     var body: some View {
         ZStack {
-            // Background gradient
+            // Dark background with subtle gradient
+            AzmyColors.backgroundPrimary
+                .ignoresSafeArea()
+
             LinearGradient(
-                colors: [Color(hex: "4F46E5").opacity(0.1), Color(hex: "7C3AED").opacity(0.05)],
+                colors: [AzmyColors.accentBlue.opacity(0.1), AzmyColors.accentPurple.opacity(0.05)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
@@ -30,8 +35,8 @@ struct OnboardingView: View {
             VStack(spacing: 0) {
                 // Progress indicator
                 ProgressBar(progress: Double(currentStep + 1) / Double(totalSteps))
-                    .padding(.horizontal, Spacing.lg)
-                    .padding(.top, Spacing.md)
+                    .padding(.horizontal, AzmySpacing.lg)
+                    .padding(.top, AzmySpacing.md)
 
                 // Content
                 TabView(selection: $currentStep) {
@@ -51,15 +56,15 @@ struct OnboardingView: View {
                         .tag(4)
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
-                .animation(.azurySmooth, value: currentStep)
+                .animation(.easeInOut(duration: 0.3), value: currentStep)
 
                 // Navigation buttons
-                HStack(spacing: Spacing.md) {
+                HStack(spacing: AzmySpacing.md) {
                     if currentStep > 0 {
                         Button("Back") {
                             withAnimation { currentStep -= 1 }
                         }
-                        .buttonStyle(AzuryButtonStyle(isSecondary: true))
+                        .buttonStyle(AzmyButtonStyle(isSecondary: true))
                     }
 
                     Spacer()
@@ -71,12 +76,12 @@ struct OnboardingView: View {
                             withAnimation { currentStep += 1 }
                         }
                     }
-                    .buttonStyle(AzuryButtonStyle())
+                    .buttonStyle(AzmyButtonStyle())
                     .disabled(!canProceed)
                     .opacity(canProceed ? 1 : 0.5)
                 }
-                .padding(.horizontal, Spacing.lg)
-                .padding(.bottom, Spacing.xl)
+                .padding(.horizontal, AzmySpacing.lg)
+                .padding(.bottom, AzmySpacing.xl)
             }
         }
     }
@@ -124,13 +129,13 @@ struct ProgressBar: View {
         GeometryReader { geometry in
             ZStack(alignment: .leading) {
                 RoundedRectangle(cornerRadius: 4)
-                    .fill(Color.gray.opacity(0.2))
+                    .fill(AzmyColors.backgroundTertiary)
                     .frame(height: 6)
 
                 RoundedRectangle(cornerRadius: 4)
-                    .fill(Color.azuryGradient)
+                    .fill(AzmyColors.gradientBlue)
                     .frame(width: geometry.size.width * progress, height: 6)
-                    .animation(.azurySmooth, value: progress)
+                    .animation(.easeInOut(duration: 0.3), value: progress)
             }
         }
         .frame(height: 6)
@@ -142,31 +147,33 @@ struct WelcomeStep: View {
     @Binding var userName: String
 
     var body: some View {
-        VStack(spacing: Spacing.lg) {
+        VStack(spacing: AzmySpacing.lg) {
             Spacer()
 
             Image(systemName: "sparkles")
                 .font(.system(size: 60))
-                .foregroundStyle(Color.azuryGradient)
+                .foregroundStyle(AzmyColors.gradientBlue)
 
             Text("Welcome to Azmy")
-                .font(.azuryLargeTitle)
+                .font(AzmyFonts.headline1())
+                .foregroundColor(AzmyColors.textPrimary)
 
             Text("Your personal AI assistant for optimizing daily life")
-                .font(.azuryBody)
-                .foregroundColor(.secondary)
+                .font(AzmyFonts.body())
+                .foregroundColor(AzmyColors.textSecondary)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, Spacing.xl)
+                .padding(.horizontal, AzmySpacing.xl)
 
-            VStack(alignment: .leading, spacing: Spacing.xs) {
+            VStack(alignment: .leading, spacing: AzmySpacing.xs) {
                 Text("What's your name?")
-                    .font(.azuryHeadline)
+                    .font(AzmyFonts.headline3())
+                    .foregroundColor(AzmyColors.textPrimary)
 
                 TextField("Enter your name", text: $userName)
-                    .textFieldStyle(AzuryTextFieldStyle())
+                    .textFieldStyle(AzmyTextFieldStyle())
             }
-            .padding(.horizontal, Spacing.lg)
-            .padding(.top, Spacing.xl)
+            .padding(.horizontal, AzmySpacing.lg)
+            .padding(.top, AzmySpacing.xl)
 
             Spacer()
             Spacer()
@@ -179,18 +186,19 @@ struct GoalsStep: View {
     @Binding var selectedGoals: Set<LifeGoal>
 
     var body: some View {
-        VStack(spacing: Spacing.lg) {
-            VStack(spacing: Spacing.sm) {
+        VStack(spacing: AzmySpacing.lg) {
+            VStack(spacing: AzmySpacing.sm) {
                 Text("What are your goals?")
-                    .font(.azuryTitle)
+                    .font(AzmyFonts.headline1())
+                    .foregroundColor(AzmyColors.textPrimary)
 
                 Text("Select all that apply")
-                    .font(.azurySubheadline)
-                    .foregroundColor(.secondary)
+                    .font(AzmyFonts.bodyLarge())
+                    .foregroundColor(AzmyColors.textSecondary)
             }
-            .padding(.top, Spacing.xl)
+            .padding(.top, AzmySpacing.xl)
 
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: Spacing.sm) {
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: AzmySpacing.sm) {
                 ForEach(LifeGoal.allCases, id: \.self) { goal in
                     GoalCard(
                         goal: goal,
@@ -204,7 +212,7 @@ struct GoalsStep: View {
                     }
                 }
             }
-            .padding(.horizontal, Spacing.lg)
+            .padding(.horizontal, AzmySpacing.lg)
 
             Spacer()
         }
@@ -218,26 +226,28 @@ struct GoalCard: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: Spacing.xs) {
+            VStack(spacing: AzmySpacing.xs) {
                 Image(systemName: iconForGoal(goal))
                     .font(.title2)
+                    .foregroundColor(isSelected ? AzmyColors.accentBlue : AzmyColors.textPrimary)
 
                 Text(goal.rawValue)
-                    .font(.azuryFootnote)
+                    .font(AzmyFonts.bodySmall())
+                    .foregroundColor(isSelected ? AzmyColors.accentBlue : AzmyColors.textPrimary)
                     .multilineTextAlignment(.center)
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, Spacing.md)
+            .padding(.vertical, AzmySpacing.md)
             .background(
                 isSelected
-                    ? AnyView(Color.azuryGradient.opacity(0.2))
-                    : AnyView(Color.azurySecondaryBackground)
+                    ? AzmyColors.accentBlue.opacity(0.15)
+                    : AzmyColors.backgroundCard
             )
             .overlay(
-                RoundedRectangle(cornerRadius: CornerRadius.medium)
-                    .stroke(isSelected ? Color.azuryBlue : Color.clear, lineWidth: 2)
+                RoundedRectangle(cornerRadius: AzmyRadius.medium)
+                    .stroke(isSelected ? AzmyColors.accentBlue : Color.clear, lineWidth: 2)
             )
-            .cornerRadius(CornerRadius.medium)
+            .cornerRadius(AzmyRadius.medium)
         }
         .buttonStyle(.plain)
     }
@@ -261,20 +271,21 @@ struct ChronotypeStep: View {
     @Binding var selectedChronotype: Chronotype
 
     var body: some View {
-        VStack(spacing: Spacing.lg) {
-            VStack(spacing: Spacing.sm) {
+        VStack(spacing: AzmySpacing.lg) {
+            VStack(spacing: AzmySpacing.sm) {
                 Text("When do you feel most energetic?")
-                    .font(.azuryTitle)
+                    .font(AzmyFonts.headline1())
+                    .foregroundColor(AzmyColors.textPrimary)
                     .multilineTextAlignment(.center)
 
                 Text("This helps us optimize your schedule")
-                    .font(.azurySubheadline)
-                    .foregroundColor(.secondary)
+                    .font(AzmyFonts.bodyLarge())
+                    .foregroundColor(AzmyColors.textSecondary)
             }
-            .padding(.top, Spacing.xl)
-            .padding(.horizontal, Spacing.md)
+            .padding(.top, AzmySpacing.xl)
+            .padding(.horizontal, AzmySpacing.md)
 
-            VStack(spacing: Spacing.sm) {
+            VStack(spacing: AzmySpacing.sm) {
                 ForEach(Chronotype.allCases, id: \.self) { type in
                     ChronotypeCard(
                         chronotype: type,
@@ -284,7 +295,7 @@ struct ChronotypeStep: View {
                     }
                 }
             }
-            .padding(.horizontal, Spacing.lg)
+            .padding(.horizontal, AzmySpacing.lg)
 
             Spacer()
         }
@@ -298,38 +309,40 @@ struct ChronotypeCard: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: Spacing.md) {
+            HStack(spacing: AzmySpacing.md) {
                 Image(systemName: iconForChronotype)
                     .font(.title)
+                    .foregroundColor(isSelected ? AzmyColors.accentBlue : AzmyColors.textPrimary)
                     .frame(width: 50)
 
-                VStack(alignment: .leading, spacing: Spacing.xxs) {
+                VStack(alignment: .leading, spacing: AzmySpacing.xxs) {
                     Text(chronotype.rawValue)
-                        .font(.azuryHeadline)
+                        .font(AzmyFonts.headline3())
+                        .foregroundColor(AzmyColors.textPrimary)
 
                     Text(chronotype.description)
-                        .font(.azuryCaption)
-                        .foregroundColor(.secondary)
+                        .font(AzmyFonts.caption())
+                        .foregroundColor(AzmyColors.textSecondary)
                 }
 
                 Spacer()
 
                 if isSelected {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(Color.azuryGradient)
+                        .foregroundStyle(AzmyColors.gradientBlue)
                 }
             }
-            .padding(Spacing.md)
+            .padding(AzmySpacing.md)
             .background(
                 isSelected
-                    ? AnyView(Color.azuryGradient.opacity(0.1))
-                    : AnyView(Color.azurySecondaryBackground)
+                    ? AzmyColors.accentBlue.opacity(0.1)
+                    : AzmyColors.backgroundCard
             )
             .overlay(
-                RoundedRectangle(cornerRadius: CornerRadius.medium)
-                    .stroke(isSelected ? Color.azuryBlue : Color.clear, lineWidth: 2)
+                RoundedRectangle(cornerRadius: AzmyRadius.medium)
+                    .stroke(isSelected ? AzmyColors.accentBlue : Color.clear, lineWidth: 2)
             )
-            .cornerRadius(CornerRadius.medium)
+            .cornerRadius(AzmyRadius.medium)
         }
         .buttonStyle(.plain)
     }
@@ -348,18 +361,19 @@ struct WorkStyleStep: View {
     @Binding var selectedWorkStyle: WorkStyle
 
     var body: some View {
-        VStack(spacing: Spacing.lg) {
-            VStack(spacing: Spacing.sm) {
+        VStack(spacing: AzmySpacing.lg) {
+            VStack(spacing: AzmySpacing.sm) {
                 Text("How do you prefer to work?")
-                    .font(.azuryTitle)
+                    .font(AzmyFonts.headline1())
+                    .foregroundColor(AzmyColors.textPrimary)
 
                 Text("We'll tailor recommendations to your style")
-                    .font(.azurySubheadline)
-                    .foregroundColor(.secondary)
+                    .font(AzmyFonts.bodyLarge())
+                    .foregroundColor(AzmyColors.textSecondary)
             }
-            .padding(.top, Spacing.xl)
+            .padding(.top, AzmySpacing.xl)
 
-            VStack(spacing: Spacing.sm) {
+            VStack(spacing: AzmySpacing.sm) {
                 ForEach(WorkStyle.allCases, id: \.self) { style in
                     WorkStyleCard(
                         style: style,
@@ -369,7 +383,7 @@ struct WorkStyleStep: View {
                     }
                 }
             }
-            .padding(.horizontal, Spacing.lg)
+            .padding(.horizontal, AzmySpacing.lg)
 
             Spacer()
         }
@@ -383,38 +397,40 @@ struct WorkStyleCard: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: Spacing.md) {
+            HStack(spacing: AzmySpacing.md) {
                 Image(systemName: iconForStyle)
                     .font(.title)
+                    .foregroundColor(isSelected ? AzmyColors.accentBlue : AzmyColors.textPrimary)
                     .frame(width: 50)
 
-                VStack(alignment: .leading, spacing: Spacing.xxs) {
+                VStack(alignment: .leading, spacing: AzmySpacing.xxs) {
                     Text(style.rawValue)
-                        .font(.azuryHeadline)
+                        .font(AzmyFonts.headline3())
+                        .foregroundColor(AzmyColors.textPrimary)
 
                     Text(descriptionForStyle)
-                        .font(.azuryCaption)
-                        .foregroundColor(.secondary)
+                        .font(AzmyFonts.caption())
+                        .foregroundColor(AzmyColors.textSecondary)
                 }
 
                 Spacer()
 
                 if isSelected {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(Color.azuryGradient)
+                        .foregroundStyle(AzmyColors.gradientBlue)
                 }
             }
-            .padding(Spacing.md)
+            .padding(AzmySpacing.md)
             .background(
                 isSelected
-                    ? AnyView(Color.azuryGradient.opacity(0.1))
-                    : AnyView(Color.azurySecondaryBackground)
+                    ? AzmyColors.accentBlue.opacity(0.1)
+                    : AzmyColors.backgroundCard
             )
             .overlay(
-                RoundedRectangle(cornerRadius: CornerRadius.medium)
-                    .stroke(isSelected ? Color.azuryBlue : Color.clear, lineWidth: 2)
+                RoundedRectangle(cornerRadius: AzmyRadius.medium)
+                    .stroke(isSelected ? AzmyColors.accentBlue : Color.clear, lineWidth: 2)
             )
-            .cornerRadius(CornerRadius.medium)
+            .cornerRadius(AzmyRadius.medium)
         }
         .buttonStyle(.plain)
     }
@@ -441,20 +457,21 @@ struct PermissionsStep: View {
     @EnvironmentObject var userProfile: UserProfileViewModel
 
     var body: some View {
-        VStack(spacing: Spacing.lg) {
-            VStack(spacing: Spacing.sm) {
+        VStack(spacing: AzmySpacing.lg) {
+            VStack(spacing: AzmySpacing.sm) {
                 Text("Connect Your Data")
-                    .font(.azuryTitle)
+                    .font(AzmyFonts.headline1())
+                    .foregroundColor(AzmyColors.textPrimary)
 
                 Text("Azmy works best with access to your calendar and health data")
-                    .font(.azurySubheadline)
-                    .foregroundColor(.secondary)
+                    .font(AzmyFonts.bodyLarge())
+                    .foregroundColor(AzmyColors.textSecondary)
                     .multilineTextAlignment(.center)
             }
-            .padding(.top, Spacing.xl)
-            .padding(.horizontal, Spacing.md)
+            .padding(.top, AzmySpacing.xl)
+            .padding(.horizontal, AzmySpacing.md)
 
-            VStack(spacing: Spacing.md) {
+            VStack(spacing: AzmySpacing.md) {
                 PermissionCard(
                     icon: "calendar",
                     title: "Calendar",
@@ -473,11 +490,11 @@ struct PermissionsStep: View {
                     Task { await userProfile.requestHealthAccess() }
                 }
             }
-            .padding(.horizontal, Spacing.lg)
+            .padding(.horizontal, AzmySpacing.lg)
 
             Text("You can change these permissions later in Settings")
-                .font(.azuryCaption)
-                .foregroundColor(.secondary)
+                .font(AzmyFonts.caption())
+                .foregroundColor(AzmyColors.textTertiary)
 
             Spacer()
         }
@@ -492,51 +509,63 @@ struct PermissionCard: View {
     let action: () -> Void
 
     var body: some View {
-        HStack(spacing: Spacing.md) {
+        HStack(spacing: AzmySpacing.md) {
             Image(systemName: icon)
                 .font(.title)
-                .foregroundStyle(Color.azuryGradient)
+                .foregroundStyle(AzmyColors.gradientBlue)
                 .frame(width: 50)
 
-            VStack(alignment: .leading, spacing: Spacing.xxs) {
+            VStack(alignment: .leading, spacing: AzmySpacing.xxs) {
                 Text(title)
-                    .font(.azuryHeadline)
+                    .font(AzmyFonts.headline3())
+                    .foregroundColor(AzmyColors.textPrimary)
 
                 Text(description)
-                    .font(.azuryCaption)
-                    .foregroundColor(.secondary)
+                    .font(AzmyFonts.caption())
+                    .foregroundColor(AzmyColors.textSecondary)
             }
 
             Spacer()
 
             Button(action: action) {
                 Text(isConnected ? "Connected" : "Connect")
-                    .font(.azuryFootnote)
+                    .font(AzmyFonts.bodySmall())
                     .fontWeight(.medium)
                     .foregroundColor(isConnected ? .green : .white)
-                    .padding(.horizontal, Spacing.sm)
-                    .padding(.vertical, Spacing.xs)
+                    .padding(.horizontal, AzmySpacing.sm)
+                    .padding(.vertical, AzmySpacing.xs)
                     .background(
                         isConnected
-                            ? AnyView(Color.green.opacity(0.2))
-                            : AnyView(Color.azuryGradient)
+                            ? Color.green.opacity(0.2)
+                            : AzmyColors.accentBlue
                     )
-                    .cornerRadius(CornerRadius.small)
+                    .cornerRadius(AzmyRadius.small)
             }
         }
-        .padding(Spacing.md)
-        .background(Color.azurySecondaryBackground)
-        .cornerRadius(CornerRadius.medium)
+        .padding(AzmySpacing.md)
+        .background(AzmyColors.backgroundCard)
+        .cornerRadius(AzmyRadius.medium)
     }
 }
 
-// MARK: - Custom Text Field Style
-struct AzuryTextFieldStyle: TextFieldStyle {
-    func _body(configuration: TextField<Self._Label>) -> some View {
-        configuration
-            .padding(Spacing.md)
-            .background(Color.azurySecondaryBackground)
-            .cornerRadius(CornerRadius.medium)
+// MARK: - Button Style
+struct AzmyButtonStyle: ButtonStyle {
+    var isSecondary: Bool = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(AzmyFonts.bodyLarge())
+            .fontWeight(.semibold)
+            .foregroundColor(isSecondary ? AzmyColors.textPrimary : .white)
+            .padding(.horizontal, AzmySpacing.lg)
+            .padding(.vertical, AzmySpacing.sm)
+            .background(
+                isSecondary
+                    ? AzmyColors.backgroundCard
+                    : AzmyColors.accentBlue
+            )
+            .cornerRadius(AzmyRadius.medium)
+            .opacity(configuration.isPressed ? 0.8 : 1.0)
     }
 }
 
@@ -544,4 +573,5 @@ struct AzuryTextFieldStyle: TextFieldStyle {
     OnboardingView()
         .environmentObject(AppState())
         .environmentObject(UserProfileViewModel())
+        .preferredColorScheme(.dark)
 }

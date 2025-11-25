@@ -2,6 +2,8 @@
 //  InsightsView.swift
 //  AzmyAI
 //
+//  Dark theme insights dashboard
+//
 
 import SwiftUI
 import Charts
@@ -14,35 +16,44 @@ struct InsightsView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: Spacing.lg) {
-                    // Timeframe picker
-                    Picker("Timeframe", selection: $selectedTimeframe) {
-                        ForEach(Timeframe.allCases, id: \.self) { tf in
-                            Text(tf.rawValue).tag(tf)
+            ZStack {
+                AzmyColors.backgroundPrimary
+                    .ignoresSafeArea()
+
+                ScrollView {
+                    VStack(spacing: AzmySpacing.lg) {
+                        // Timeframe picker
+                        Picker("Timeframe", selection: $selectedTimeframe) {
+                            ForEach(Timeframe.allCases, id: \.self) { tf in
+                                Text(tf.rawValue).tag(tf)
+                            }
                         }
+                        .pickerStyle(.segmented)
+                        .padding(.horizontal, AzmySpacing.md)
+
+                        // Quick Stats
+                        QuickStatsGrid(profile: userProfile.profile)
+
+                        // Energy Chart
+                        EnergyChartCard()
+
+                        // Sleep Analysis
+                        SleepAnalysisCard(profile: userProfile.profile)
+
+                        // Productivity Score
+                        ProductivityCard(tasks: plannerViewModel.tasks)
+
+                        // Patterns
+                        PatternsCard(profile: userProfile.profile)
                     }
-                    .pickerStyle(.segmented)
-                    .padding(.horizontal, Spacing.md)
-
-                    // Quick Stats
-                    QuickStatsGrid(profile: userProfile.profile)
-
-                    // Energy Chart
-                    EnergyChartCard()
-
-                    // Sleep Analysis
-                    SleepAnalysisCard(profile: userProfile.profile)
-
-                    // Productivity Score
-                    ProductivityCard(tasks: plannerViewModel.tasks)
-
-                    // Patterns
-                    PatternsCard(profile: userProfile.profile)
+                    .padding(.bottom, AzmySpacing.xl)
                 }
-                .padding(.bottom, Spacing.xl)
             }
             .navigationTitle("Insights")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(AzmyColors.backgroundPrimary, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
         }
     }
 }
@@ -58,7 +69,7 @@ struct QuickStatsGrid: View {
     let profile: UserProfile
 
     var body: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: Spacing.sm) {
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: AzmySpacing.sm) {
             StatCard(
                 title: "Sleep Avg",
                 value: String(format: "%.1f", profile.healthData?.sleepHours ?? 7.2),
@@ -91,7 +102,7 @@ struct QuickStatsGrid: View {
                 color: .purple
             )
         }
-        .padding(.horizontal, Spacing.md)
+        .padding(.horizontal, AzmySpacing.md)
     }
 
     private func formatNumber(_ num: Int) -> String {
@@ -110,7 +121,7 @@ struct StatCard: View {
     let color: Color
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
+        VStack(alignment: .leading, spacing: AzmySpacing.sm) {
             HStack {
                 Image(systemName: icon)
                     .foregroundColor(color)
@@ -119,19 +130,20 @@ struct StatCard: View {
 
             HStack(alignment: .lastTextBaseline, spacing: 2) {
                 Text(value)
-                    .font(.azuryTitle)
+                    .font(AzmyFonts.headline1())
+                    .foregroundColor(AzmyColors.textPrimary)
                 Text(unit)
-                    .font(.azuryCaption)
-                    .foregroundColor(.secondary)
+                    .font(AzmyFonts.caption())
+                    .foregroundColor(AzmyColors.textSecondary)
             }
 
             Text(title)
-                .font(.azuryCaption)
-                .foregroundColor(.secondary)
+                .font(AzmyFonts.caption())
+                .foregroundColor(AzmyColors.textSecondary)
         }
-        .padding(Spacing.md)
-        .background(Color.azurySecondaryBackground)
-        .cornerRadius(CornerRadius.medium)
+        .padding(AzmySpacing.md)
+        .background(AzmyColors.backgroundCard)
+        .cornerRadius(AzmyRadius.medium)
     }
 }
 
@@ -145,16 +157,17 @@ struct EnergyChartCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
+        VStack(alignment: .leading, spacing: AzmySpacing.sm) {
             HStack {
                 Text("Energy Pattern")
-                    .font(.azuryHeadline)
+                    .font(AzmyFonts.headline3())
+                    .foregroundColor(AzmyColors.textPrimary)
 
                 Spacer()
 
                 Text("Today")
-                    .font(.azuryCaption)
-                    .foregroundColor(.secondary)
+                    .font(AzmyFonts.caption())
+                    .foregroundColor(AzmyColors.textSecondary)
             }
 
             Chart(data) { item in
@@ -164,7 +177,7 @@ struct EnergyChartCard: View {
                 )
                 .foregroundStyle(
                     LinearGradient(
-                        colors: [Color.azuryBlue.opacity(0.5), Color.azuryBlue.opacity(0.1)],
+                        colors: [AzmyColors.accentBlue.opacity(0.5), AzmyColors.accentBlue.opacity(0.1)],
                         startPoint: .top,
                         endPoint: .bottom
                     )
@@ -174,7 +187,7 @@ struct EnergyChartCard: View {
                     x: .value("Hour", item.hour),
                     y: .value("Energy", item.predictedLevel)
                 )
-                .foregroundStyle(Color.azuryBlue)
+                .foregroundStyle(AzmyColors.accentBlue)
                 .lineStyle(StrokeStyle(lineWidth: 2))
             }
             .chartXAxis {
@@ -182,7 +195,8 @@ struct EnergyChartCard: View {
                     AxisValueLabel {
                         if let hour = value.as(Int.self) {
                             Text(formatHour(hour))
-                                .font(.azuryCaption)
+                                .font(AzmyFonts.caption())
+                                .foregroundColor(AzmyColors.textSecondary)
                         }
                     }
                 }
@@ -194,15 +208,15 @@ struct EnergyChartCard: View {
             }
             .frame(height: 150)
 
-            HStack(spacing: Spacing.lg) {
+            HStack(spacing: AzmySpacing.lg) {
                 InsightBadge(icon: "sunrise.fill", text: "Peak: 9-11 AM", color: .orange)
                 InsightBadge(icon: "moon.fill", text: "Low: 2-3 PM", color: .indigo)
             }
         }
-        .padding(Spacing.md)
-        .background(Color.azurySecondaryBackground)
-        .cornerRadius(CornerRadius.medium)
-        .padding(.horizontal, Spacing.md)
+        .padding(AzmySpacing.md)
+        .background(AzmyColors.backgroundCard)
+        .cornerRadius(AzmyRadius.medium)
+        .padding(.horizontal, AzmySpacing.md)
     }
 
     private func formatHour(_ hour: Int) -> String {
@@ -238,11 +252,11 @@ struct InsightBadge: View {
     let color: Color
 
     var body: some View {
-        HStack(spacing: Spacing.xxs) {
+        HStack(spacing: AzmySpacing.xxs) {
             Image(systemName: icon)
                 .font(.caption2)
             Text(text)
-                .font(.azuryCaption)
+                .font(AzmyFonts.caption())
         }
         .foregroundColor(color)
     }
@@ -253,11 +267,12 @@ struct SleepAnalysisCard: View {
     let profile: UserProfile
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
+        VStack(alignment: .leading, spacing: AzmySpacing.sm) {
             Text("Sleep Analysis")
-                .font(.azuryHeadline)
+                .font(AzmyFonts.headline3())
+                .foregroundColor(AzmyColors.textPrimary)
 
-            HStack(spacing: Spacing.lg) {
+            HStack(spacing: AzmySpacing.lg) {
                 // Sleep score ring
                 ZStack {
                     Circle()
@@ -270,15 +285,16 @@ struct SleepAnalysisCard: View {
 
                     VStack(spacing: 0) {
                         Text("85")
-                            .font(.azuryTitle2)
+                            .font(AzmyFonts.headline2())
+                            .foregroundColor(AzmyColors.textPrimary)
                         Text("Score")
-                            .font(.azuryCaption)
-                            .foregroundColor(.secondary)
+                            .font(AzmyFonts.caption())
+                            .foregroundColor(AzmyColors.textSecondary)
                     }
                 }
                 .frame(width: 80, height: 80)
 
-                VStack(alignment: .leading, spacing: Spacing.xs) {
+                VStack(alignment: .leading, spacing: AzmySpacing.xs) {
                     SleepMetric(label: "Duration", value: "7h 23m", target: "8h")
                     SleepMetric(label: "Quality", value: "Good", target: nil)
                     SleepMetric(label: "Consistency", value: "92%", target: nil)
@@ -286,15 +302,16 @@ struct SleepAnalysisCard: View {
             }
 
             Divider()
+                .background(AzmyColors.separator)
 
             Text("You tend to sleep better on weeknights. Consider maintaining your weeknight routine on weekends.")
-                .font(.azuryCaption)
-                .foregroundColor(.secondary)
+                .font(AzmyFonts.caption())
+                .foregroundColor(AzmyColors.textSecondary)
         }
-        .padding(Spacing.md)
-        .background(Color.azurySecondaryBackground)
-        .cornerRadius(CornerRadius.medium)
-        .padding(.horizontal, Spacing.md)
+        .padding(AzmySpacing.md)
+        .background(AzmyColors.backgroundCard)
+        .cornerRadius(AzmyRadius.medium)
+        .padding(.horizontal, AzmySpacing.md)
     }
 }
 
@@ -306,18 +323,19 @@ struct SleepMetric: View {
     var body: some View {
         HStack {
             Text(label)
-                .font(.azuryCaption)
-                .foregroundColor(.secondary)
+                .font(AzmyFonts.caption())
+                .foregroundColor(AzmyColors.textSecondary)
                 .frame(width: 80, alignment: .leading)
 
             Text(value)
-                .font(.azurySubheadline)
+                .font(AzmyFonts.bodyLarge())
                 .fontWeight(.medium)
+                .foregroundColor(AzmyColors.textPrimary)
 
             if let target = target {
                 Text("/ \(target)")
-                    .font(.azuryCaption)
-                    .foregroundColor(.secondary)
+                    .font(AzmyFonts.caption())
+                    .foregroundColor(AzmyColors.textSecondary)
             }
         }
     }
@@ -333,16 +351,17 @@ struct ProductivityCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
+        VStack(alignment: .leading, spacing: AzmySpacing.sm) {
             HStack {
                 Text("Productivity")
-                    .font(.azuryHeadline)
+                    .font(AzmyFonts.headline3())
+                    .foregroundColor(AzmyColors.textPrimary)
 
                 Spacer()
 
                 Text("\(Int(completionRate * 100))% complete")
-                    .font(.azuryCaption)
-                    .foregroundColor(.secondary)
+                    .font(AzmyFonts.caption())
+                    .foregroundColor(AzmyColors.textSecondary)
             }
 
             // Progress bar
@@ -366,10 +385,10 @@ struct ProductivityCard: View {
                 ProductivityStat(value: "\(tasks.filter { $0.priority >= .high }.count)", label: "High Priority")
             }
         }
-        .padding(Spacing.md)
-        .background(Color.azurySecondaryBackground)
-        .cornerRadius(CornerRadius.medium)
-        .padding(.horizontal, Spacing.md)
+        .padding(AzmySpacing.md)
+        .background(AzmyColors.backgroundCard)
+        .cornerRadius(AzmyRadius.medium)
+        .padding(.horizontal, AzmySpacing.md)
     }
 }
 
@@ -378,13 +397,14 @@ struct ProductivityStat: View {
     let label: String
 
     var body: some View {
-        VStack(spacing: Spacing.xxs) {
+        VStack(spacing: AzmySpacing.xxs) {
             Text(value)
-                .font(.azuryTitle3)
+                .font(AzmyFonts.headline3())
+                .foregroundColor(AzmyColors.textPrimary)
 
             Text(label)
-                .font(.azuryCaption)
-                .foregroundColor(.secondary)
+                .font(AzmyFonts.caption())
+                .foregroundColor(AzmyColors.textSecondary)
         }
     }
 }
@@ -394,15 +414,16 @@ struct PatternsCard: View {
     let profile: UserProfile
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
+        VStack(alignment: .leading, spacing: AzmySpacing.sm) {
             HStack {
                 Image(systemName: "lightbulb.fill")
-                    .foregroundStyle(Color.azuryGradient)
+                    .foregroundStyle(AzmyColors.gradientBlue)
                 Text("Your Patterns")
-                    .font(.azuryHeadline)
+                    .font(AzmyFonts.headline3())
+                    .foregroundColor(AzmyColors.textPrimary)
             }
 
-            VStack(alignment: .leading, spacing: Spacing.sm) {
+            VStack(alignment: .leading, spacing: AzmySpacing.sm) {
                 PatternItem(
                     icon: "sunrise.fill",
                     text: "You're most productive between 9-11 AM",
@@ -422,10 +443,10 @@ struct PatternsCard: View {
                 )
             }
         }
-        .padding(Spacing.md)
-        .background(Color.azurySecondaryBackground)
-        .cornerRadius(CornerRadius.medium)
-        .padding(.horizontal, Spacing.md)
+        .padding(AzmySpacing.md)
+        .background(AzmyColors.backgroundCard)
+        .cornerRadius(AzmyRadius.medium)
+        .padding(.horizontal, AzmySpacing.md)
     }
 }
 
@@ -435,13 +456,14 @@ struct PatternItem: View {
     let color: Color
 
     var body: some View {
-        HStack(spacing: Spacing.sm) {
+        HStack(spacing: AzmySpacing.sm) {
             Image(systemName: icon)
                 .foregroundColor(color)
                 .frame(width: 24)
 
             Text(text)
-                .font(.azurySubheadline)
+                .font(AzmyFonts.bodyLarge())
+                .foregroundColor(AzmyColors.textPrimary)
         }
     }
 }
@@ -450,4 +472,5 @@ struct PatternItem: View {
     InsightsView()
         .environmentObject(UserProfileViewModel())
         .environmentObject(PlannerViewModel())
+        .preferredColorScheme(.dark)
 }
