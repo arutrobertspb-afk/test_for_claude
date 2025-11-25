@@ -11,8 +11,10 @@ import Charts
 struct InsightsView: View {
     @EnvironmentObject var userProfile: UserProfileViewModel
     @EnvironmentObject var plannerViewModel: PlannerViewModel
+    @EnvironmentObject var quizViewModel: QuizViewModel
 
     @State private var selectedTimeframe: Timeframe = .week
+    @State private var showQuiz = false
 
     var body: some View {
         NavigationStack {
@@ -22,6 +24,12 @@ struct InsightsView: View {
 
                 ScrollView {
                     VStack(spacing: AzmySpacing.lg) {
+                        // Quiz Card
+                        QuizLaunchCard {
+                            quizViewModel.startQuiz(AzmyQuiz.interiorStyleQuiz)
+                            showQuiz = true
+                        }
+
                         // Timeframe picker
                         Picker("Timeframe", selection: $selectedTimeframe) {
                             ForEach(Timeframe.allCases, id: \.self) { tf in
@@ -54,7 +62,57 @@ struct InsightsView: View {
             .toolbarBackground(AzmyColors.backgroundPrimary, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
+            .sheet(isPresented: $showQuiz) {
+                QuizContainerView()
+                    .environmentObject(quizViewModel)
+            }
         }
+    }
+}
+
+// MARK: - Quiz Launch Card
+struct QuizLaunchCard: View {
+    let onStart: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AzmySpacing.md) {
+            HStack {
+                VStack(alignment: .leading, spacing: AzmySpacing.xs) {
+                    Text("Explore Your Style")
+                        .font(AzmyFonts.headline2())
+                        .foregroundColor(AzmyColors.textPrimary)
+
+                    Text("Take a quick quiz to understand your preferences")
+                        .font(AzmyFonts.body())
+                        .foregroundColor(AzmyColors.textSecondary)
+                }
+
+                Spacer()
+
+                Image(systemName: "sparkles")
+                    .font(.title)
+                    .foregroundStyle(AzmyColors.gradientBlue)
+            }
+
+            Button(action: onStart) {
+                HStack {
+                    Spacer()
+                    Text("Start Quiz")
+                        .font(AzmyFonts.bodyLarge())
+                        .fontWeight(.semibold)
+                    Image(systemName: "arrow.right")
+                    Spacer()
+                }
+                .foregroundColor(.white)
+                .padding(.vertical, AzmySpacing.md)
+                .background(AzmyColors.accentBlue)
+                .cornerRadius(AzmyRadius.medium)
+            }
+        }
+        .padding(AzmySpacing.md)
+        .background(AzmyColors.backgroundCard)
+        .cornerRadius(AzmyRadius.large)
+        .padding(.horizontal, AzmySpacing.md)
     }
 }
 
@@ -472,5 +530,6 @@ struct PatternItem: View {
     InsightsView()
         .environmentObject(UserProfileViewModel())
         .environmentObject(PlannerViewModel())
+        .environmentObject(QuizViewModel())
         .preferredColorScheme(.dark)
 }
