@@ -115,13 +115,28 @@ struct CalendarView: View {
             .presentationDragIndicator(.visible)
         }
         .onAppear {
-            plannerViewModel.selectDate(selectedDate)
+            Task {
+                await plannerViewModel.fetchEventsForMonth(currentMonth)
+            }
         }
-        .onChange(of: selectedDate) { _, newDate in
-            plannerViewModel.selectDate(newDate)
+        .onChange(of: currentMonth) { _, newMonth in
+            Task {
+                await plannerViewModel.fetchEventsForMonth(newMonth)
+            }
+        }
+        .onChange(of: showWeekView) { _, isWeekView in
+            Task {
+                if isWeekView {
+                    await plannerViewModel.fetchEventsForSelectedDate()
+                } else {
+                    await plannerViewModel.fetchEventsForMonth(currentMonth)
+                }
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .calendarEventsDidChange)) { _ in
-            plannerViewModel.selectDate(selectedDate)
+            Task {
+                await plannerViewModel.fetchEventsForMonth(currentMonth)
+            }
         }
     }
 
@@ -288,7 +303,7 @@ struct MonthGridView: View {
                         onDateTap(date)
                     }
                 } else {
-                    Color.clear.frame(height: 80)
+                    Color.clear.frame(height: 90)
                 }
             }
         }
@@ -331,39 +346,38 @@ struct MonthDayCell: View {
     let events: [CalendarEvent]
     let action: () -> Void
 
+    private let maxVisibleEvents = 2
+
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 2) {
+            VStack(spacing: 4) {
                 // Day number
                 Text("\(Calendar.current.component(.day, from: date))")
-                    .font(.system(size: 16, weight: .medium))
+                    .font(.system(size: 16, weight: isToday ? .bold : .medium))
                     .foregroundColor(.white)
-                    .frame(width: 28, height: 28)
-                    .background(isSelected ? AzmyColors.accentBlue : (isToday ? AzmyColors.accentBlue.opacity(0.3) : Color.clear))
+                    .frame(width: 32, height: 32)
+                    .background(isToday ? AzmyColors.accentBlue : Color.clear)
                     .clipShape(Circle())
 
-                // Event labels (max 2 + overflow)
-                VStack(spacing: 1) {
-                    ForEach(Array(events.prefix(2).enumerated()), id: \.offset) { _, event in
-                        Text(event.title.prefix(6) + (event.title.count > 6 ? "..." : ""))
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundColor(eventColor(for: event))
-                            .lineLimit(1)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 2)
+                // Event pills (colored badges like Google Calendar)
+                VStack(spacing: 2) {
+                    ForEach(Array(events.prefix(maxVisibleEvents).enumerated()), id: \.offset) { _, event in
+                        EventPill(title: event.title, color: eventColor(for: event))
                     }
 
-                    if events.count > 2 {
-                        Text("+\(events.count - 2)")
+                    if events.count > maxVisibleEvents {
+                        Text("+\(events.count - maxVisibleEvents)")
                             .font(.system(size: 9, weight: .medium))
                             .foregroundColor(AzmyColors.textTertiary)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 2)
+                            .padding(.leading, 2)
                     }
                 }
-                .frame(height: 36)
+                .frame(minHeight: 40, alignment: .top)
+
+                Spacer(minLength: 0)
             }
-            .frame(height: 80)
+            .frame(height: 90)
             .frame(maxWidth: .infinity)
         }
         .buttonStyle(.plain)
@@ -379,6 +393,30 @@ struct MonthDayCell: View {
         case .focus: return .purple
         case .other: return .gray
         }
+    }
+}
+
+// MARK: - Event Pill (colored badge)
+struct EventPill: View {
+    let title: String
+    let color: Color
+
+    var body: some View {
+        Text(truncatedTitle)
+            .font(.system(size: 9, weight: .semibold))
+            .foregroundColor(.white)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 2)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(color)
+            .cornerRadius(3)
+    }
+
+    private var truncatedTitle: String {
+        if title.count > 6 {
+            return String(title.prefix(5)) + "..."
+        }
+        return title
     }
 }
 

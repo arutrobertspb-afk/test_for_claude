@@ -88,6 +88,40 @@ class PlannerViewModel: ObservableObject {
         }
     }
 
+    func fetchEventsForMonth(_ month: Date) async {
+        await MainActor.run { isLoading = true }
+
+        print("📅 PlannerViewModel: fetchEventsForMonth")
+
+        // Wait for authorization if not yet authorized
+        if !calendarService.isAuthorized {
+            print("📅 Waiting for calendar authorization...")
+            try? await calendarService.requestAuthorization()
+        }
+
+        do {
+            let calendar = Calendar.current
+            let startOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: month))!
+            let endOfMonth = calendar.date(byAdding: .month, value: 1, to: startOfMonth)!
+
+            print("📅 Fetching events from \(startOfMonth) to \(endOfMonth)")
+
+            let fetchedEvents = try await calendarService.fetchEvents(from: startOfMonth, to: endOfMonth)
+
+            print("📅 Fetched \(fetchedEvents.count) events for month")
+
+            await MainActor.run {
+                self.events = fetchedEvents.sorted { $0.startDate < $1.startDate }
+                self.isLoading = false
+            }
+        } catch {
+            await MainActor.run {
+                self.isLoading = false
+            }
+            print("❌ Error fetching month events: \(error)")
+        }
+    }
+
     func createEvent(
         title: String,
         startDate: Date,
