@@ -294,11 +294,7 @@ struct ChatInputBar: View {
             Button(action: onSend) {
                 Image(systemName: "arrow.up.circle.fill")
                     .font(.system(size: 32))
-                    .foregroundStyle(
-                        canSend
-                            ? AnyShapeStyle(Color.azuryGradient)
-                            : AnyShapeStyle(Color.gray.opacity(0.3))
-                    )
+                    .foregroundColor(canSend ? Color.azuryBlue : Color.gray.opacity(0.3))
             }
             .disabled(!canSend || isTyping)
         }

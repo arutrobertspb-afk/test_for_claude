@@ -55,7 +55,7 @@ class UserProfileViewModel: ObservableObject {
     func processQuizResults() {
         // Analyze quiz answers to build personality profile
         var traits = PersonalityTraits()
-        var preferences = LifestylePreferences()
+        let preferences = LifestylePreferences()
 
         // Process each answer and update traits/preferences
         for answer in profile.quizAnswers {

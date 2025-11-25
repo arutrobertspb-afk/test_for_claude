@@ -35,21 +35,29 @@ class HealthKitService: ObservableObject {
 
     // MARK: - Fetch Data
     func fetchHealthSnapshot() async throws -> HealthSnapshot {
-        var snapshot = HealthSnapshot()
-        snapshot.lastUpdated = Date()
-
         // Fetch all data concurrently
-        async let steps = fetchSteps()
-        async let calories = fetchActiveCalories()
-        async let heartRate = fetchLatestHeartRate()
-        async let hrv = fetchHRV()
-        async let sleep = fetchSleepHours()
+        async let stepsResult = fetchSteps()
+        async let caloriesResult = fetchActiveCalories()
+        async let heartRateResult = fetchLatestHeartRate()
+        async let hrvResult = fetchHRV()
+        async let sleepResult = fetchSleepHours()
 
-        snapshot.steps = try? await steps
-        snapshot.activeCalories = try? await calories
-        snapshot.heartRate = try? await heartRate
-        snapshot.hrvAverage = try? await hrv
-        snapshot.sleepHours = try? await sleep
+        let steps = try? await stepsResult
+        let calories = try? await caloriesResult
+        let heartRate = try? await heartRateResult
+        let hrv = try? await hrvResult
+        let sleep = try? await sleepResult
+
+        let snapshot = HealthSnapshot(
+            lastUpdated: Date(),
+            sleepHours: sleep,
+            steps: steps,
+            activeCalories: calories,
+            heartRate: heartRate,
+            hrvAverage: hrv,
+            energyLevel: nil,
+            moodScore: nil
+        )
 
         await MainActor.run {
             self.latestSnapshot = snapshot
