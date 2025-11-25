@@ -2,6 +2,8 @@
 //  ChatView.swift
 //  AzmyAI
 //
+//  Dark theme chat interface
+//
 
 import SwiftUI
 
@@ -15,14 +17,22 @@ struct ChatView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                messagesScrollView
-                quickPromptsSection
-                inputBarSection
+            ZStack {
+                // Dark background
+                AzmyColors.backgroundPrimary
+                    .ignoresSafeArea()
+
+                VStack(spacing: 0) {
+                    messagesScrollView
+                    quickPromptsSection
+                    inputBarSection
+                }
             }
-            .background(Color(UIColor.systemBackground))
             .navigationTitle("Azmy")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(AzmyColors.backgroundPrimary, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     menuButton
@@ -89,6 +99,7 @@ struct ChatView: View {
             }
         } label: {
             Image(systemName: "ellipsis.circle")
+                .foregroundColor(AzmyColors.textSecondary)
         }
     }
 
@@ -168,7 +179,7 @@ struct MessageBubble: View {
 
     private var avatarView: some View {
         Circle()
-            .fill(LinearGradient(colors: [Color(hex: "4F46E5"), Color(hex: "7C3AED")], startPoint: .topLeading, endPoint: .bottomTrailing))
+            .fill(AzmyColors.gradientBlue)
             .frame(width: 32, height: 32)
             .overlay(
                 Image(systemName: "sparkles")
@@ -179,18 +190,18 @@ struct MessageBubble: View {
 
     private func messageTextView(isUser: Bool) -> some View {
         Text(message.content)
-            .font(.body)
+            .font(AzmyFonts.body())
+            .foregroundColor(isUser ? .white : AzmyColors.textPrimary)
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            .background(isUser ? Color(hex: "4F46E5") : Color(UIColor.secondarySystemBackground))
-            .foregroundColor(isUser ? .white : .primary)
+            .background(isUser ? AzmyColors.accentBlue : AzmyColors.backgroundCard)
             .cornerRadius(16)
     }
 
     private var timestampView: some View {
         Text(message.timestamp, style: .time)
-            .font(.caption2)
-            .foregroundColor(.secondary)
+            .font(AzmyFonts.caption())
+            .foregroundColor(AzmyColors.textTertiary)
             .padding(.horizontal, message.role == .assistant ? 40 : 0)
     }
 
@@ -219,11 +230,11 @@ struct SuggestionButton: View {
     var body: some View {
         Button(action: onTap) {
             Text(action.title)
-                .font(.footnote)
-                .foregroundColor(Color(hex: "4F46E5"))
+                .font(AzmyFonts.bodySmall())
+                .foregroundColor(AzmyColors.accentBlue)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(Color(hex: "4F46E5").opacity(0.1))
+                .background(AzmyColors.accentBlue.opacity(0.15))
                 .cornerRadius(20)
         }
     }
@@ -237,7 +248,7 @@ struct TypingIndicator: View {
     var body: some View {
         HStack(alignment: .bottom, spacing: 8) {
             Circle()
-                .fill(LinearGradient(colors: [Color(hex: "4F46E5"), Color(hex: "7C3AED")], startPoint: .topLeading, endPoint: .bottomTrailing))
+                .fill(AzmyColors.gradientBlue)
                 .frame(width: 32, height: 32)
                 .overlay(
                     Image(systemName: "sparkles")
@@ -248,14 +259,14 @@ struct TypingIndicator: View {
             HStack(spacing: 4) {
                 ForEach(0..<3, id: \.self) { index in
                     Circle()
-                        .fill(Color.secondary)
+                        .fill(AzmyColors.textSecondary)
                         .frame(width: 8, height: 8)
                         .offset(y: dotIndex == index ? -4 : 0)
                 }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            .background(Color(UIColor.secondarySystemBackground))
+            .background(AzmyColors.backgroundCard)
             .cornerRadius(16)
 
             Spacer()
@@ -275,8 +286,8 @@ struct QuickPromptsBar: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Quick actions")
-                .font(.footnote)
-                .foregroundColor(.secondary)
+                .font(AzmyFonts.bodySmall())
+                .foregroundColor(AzmyColors.textSecondary)
                 .padding(.horizontal, 16)
 
             ScrollView(.horizontal, showsIndicators: false) {
@@ -291,7 +302,7 @@ struct QuickPromptsBar: View {
             }
         }
         .padding(.vertical, 12)
-        .background(Color(UIColor.secondarySystemBackground).opacity(0.5))
+        .background(AzmyColors.backgroundSecondary)
     }
 }
 
@@ -305,16 +316,16 @@ struct QuickPromptChip: View {
                 Image(systemName: prompt.icon)
                     .font(.system(size: 14))
                 Text(prompt.title)
-                    .font(.footnote)
+                    .font(AzmyFonts.bodySmall())
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .background(Color(UIColor.secondarySystemBackground))
-            .foregroundColor(.primary)
+            .background(AzmyColors.backgroundCard)
+            .foregroundColor(AzmyColors.textPrimary)
             .cornerRadius(20)
             .overlay(
                 RoundedRectangle(cornerRadius: 20)
-                    .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                    .stroke(AzmyColors.separator, lineWidth: 1)
             )
         }
     }
@@ -338,25 +349,31 @@ struct ChatInputBar: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(Color(UIColor.systemBackground))
+        .background(AzmyColors.backgroundPrimary)
     }
 
     private var textField: some View {
         TextField("Ask Azmy anything...", text: $text, axis: .vertical)
             .textFieldStyle(.plain)
+            .font(AzmyFonts.body())
+            .foregroundColor(AzmyColors.textPrimary)
             .lineLimit(1...5)
             .focused(isFocused)
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            .background(Color(UIColor.secondarySystemBackground))
-            .cornerRadius(16)
+            .background(AzmyColors.backgroundSecondary)
+            .cornerRadius(AzmyRadius.large)
+            .overlay(
+                RoundedRectangle(cornerRadius: AzmyRadius.large)
+                    .stroke(AzmyColors.separator, lineWidth: 1)
+            )
     }
 
     private var sendButton: some View {
         Button(action: onSend) {
             Image(systemName: "arrow.up.circle.fill")
                 .font(.system(size: 32))
-                .foregroundColor(canSend ? Color(hex: "4F46E5") : Color.gray.opacity(0.3))
+                .foregroundColor(canSend ? AzmyColors.accentBlue : AzmyColors.textTertiary)
         }
         .disabled(!canSend)
     }
@@ -367,4 +384,5 @@ struct ChatInputBar: View {
         .environmentObject(ChatViewModel())
         .environmentObject(UserProfileViewModel())
         .environmentObject(PlannerViewModel())
+        .preferredColorScheme(.dark)
 }
