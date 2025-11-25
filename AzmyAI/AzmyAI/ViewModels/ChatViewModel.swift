@@ -12,7 +12,8 @@ class ChatViewModel: ObservableObject {
     @Published var isTyping: Bool = false
     @Published var error: String?
 
-    private let aiService = AIService()
+    private let aiService = AzmyAIService.shared
+    private let memory = ConversationMemory.shared
     private var cancellables = Set<AnyCancellable>()
     private var streamingTimer: Timer?
     private var currentStreamingIndex: Int = 0
@@ -29,25 +30,28 @@ class ChatViewModel: ObservableObject {
     // MARK: - Welcome Message
     private func addWelcomeMessage() {
         let context = ChatContext()
+        let userName = memory.userContext.name ?? ""
+        let greeting = userName.isEmpty ? context.timeOfDay.greeting : "\(context.timeOfDay.greeting), \(userName)"
+
         let welcomeContent = """
-            \(context.timeOfDay.greeting)! I'm Azmy, your personal AI assistant.
+            \(greeting)! I'm Azmy, your personal AI assistant.
 
-            I'm here to help you:
-            - Plan your day based on your energy levels
-            - Create events and manage your calendar
-            - Track your wellness and habits
-            - Give you personalized insights
+            I can help you:
+            • Manage your calendar (create, edit, delete events)
+            • Analyze your schedule and suggest breaks
+            • Give personalized advice based on your patterns
+            • Track your wellness and habits
 
-            How can I help you today?
+            What would you like to do?
             """
 
         let welcomeMessage = ChatMessage(
             content: welcomeContent,
             role: .assistant,
             suggestions: [
-                SuggestedAction(type: .quickReply, title: "Plan my day"),
-                SuggestedAction(type: .quickReply, title: "Log my energy"),
-                SuggestedAction(type: .quickReply, title: "What can you do?")
+                SuggestedAction(type: .quickReply, title: "What's my schedule today?"),
+                SuggestedAction(type: .quickReply, title: "Analyze my week"),
+                SuggestedAction(type: .createEvent, title: "Schedule a meeting")
             ],
             isStreaming: true
         )
@@ -117,48 +121,47 @@ class ChatViewModel: ObservableObject {
         // Show typing indicator
         isTyping = true
 
-        // Build context
-        var context = ChatContext()
-        context.recentEvents = calendarEvents
-        context.healthSnapshot = profile.healthData
+        // Update user name in memory if detected
+        if let name = profile.name, !name.isEmpty {
+            memory.updateUserName(name)
+        }
 
-        // Send to AI
+        // Send to AI using new service
         Task {
-            do {
-                let response = try await aiService.sendMessage(
-                    text,
-                    context: context,
-                    profile: profile,
-                    conversationHistory: messages
+            let response = await aiService.sendMessage(text)
+
+            await MainActor.run {
+                self.isTyping = false
+
+                // Determine suggestions based on response content
+                var suggestions: [SuggestedAction] = []
+                let lowerResponse = response.lowercased()
+
+                if lowerResponse.contains("event") || lowerResponse.contains("meeting") {
+                    suggestions.append(SuggestedAction(type: .quickReply, title: "Show my schedule"))
+                }
+                if lowerResponse.contains("break") || lowerResponse.contains("rest") {
+                    suggestions.append(SuggestedAction(type: .quickReply, title: "Block rest time"))
+                }
+                if suggestions.isEmpty {
+                    suggestions = [
+                        SuggestedAction(type: .quickReply, title: "What else can you do?"),
+                        SuggestedAction(type: .quickReply, title: "Analyze my schedule")
+                    ]
+                }
+
+                // Create streaming message
+                let streamingMessage = ChatMessage(
+                    content: response,
+                    role: .assistant,
+                    suggestions: suggestions,
+                    isStreaming: true
                 )
 
-                await MainActor.run {
-                    self.isTyping = false
+                self.messages.append(streamingMessage)
 
-                    // Create streaming message
-                    var streamingMessage = response
-                    streamingMessage.isStreaming = true
-                    streamingMessage.displayedContent = ""
-
-                    self.messages.append(streamingMessage)
-
-                    // Start streaming animation
-                    self.startStreaming(messageId: streamingMessage.id)
-                }
-            } catch {
-                await MainActor.run {
-                    self.isTyping = false
-                    self.error = error.localizedDescription
-
-                    // Add error message with streaming
-                    let errorMessage = ChatMessage(
-                        content: "Sorry, I had trouble processing that. Please try again.",
-                        role: .assistant,
-                        isStreaming: true
-                    )
-                    self.messages.append(errorMessage)
-                    self.startStreaming(messageId: errorMessage.id)
-                }
+                // Start streaming animation
+                self.startStreaming(messageId: streamingMessage.id)
             }
         }
     }
@@ -210,7 +213,28 @@ class ChatViewModel: ObservableObject {
         streamingTimer?.invalidate()
         streamingTimer = nil
         messages.removeAll()
+        memory.clearConversation()
         addWelcomeMessage()
+    }
+
+    // MARK: - Quick AI Actions
+    func analyzeSchedule() {
+        Task {
+            let response = await aiService.analyzeToday()
+            await MainActor.run {
+                let message = ChatMessage(
+                    content: response,
+                    role: .assistant,
+                    suggestions: [
+                        SuggestedAction(type: .quickReply, title: "Suggest breaks"),
+                        SuggestedAction(type: .quickReply, title: "Block focus time")
+                    ],
+                    isStreaming: true
+                )
+                self.messages.append(message)
+                self.startStreaming(messageId: message.id)
+            }
+        }
     }
 
     deinit {
