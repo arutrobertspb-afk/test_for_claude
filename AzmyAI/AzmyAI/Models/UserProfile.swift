@@ -12,6 +12,12 @@ struct UserProfile: Codable, Identifiable {
     var email: String = ""
     var createdAt: Date = Date()
 
+    // Authentication
+    var authProvider: String = "none" // "google", "apple", "none"
+    var authUserId: String?
+    var profileImageURL: String?
+    var isGoogleCalendarConnected: Bool = false
+
     // Quiz Results
     var quizAnswers: [QuizAnswer] = []
     var personalityTraits: PersonalityTraits?
@@ -26,6 +32,7 @@ struct UserProfile: Codable, Identifiable {
     var notificationsEnabled: Bool = true
     var morningReminderTime: Date = Calendar.current.date(from: DateComponents(hour: 8, minute: 0)) ?? Date()
     var eveningReminderTime: Date = Calendar.current.date(from: DateComponents(hour: 21, minute: 0)) ?? Date()
+    var preferGoogleCalendar: Bool = false // Use Google Calendar instead of local
 }
 
 // MARK: - Legacy Quiz Models (deprecated - use QuizModels.swift instead)

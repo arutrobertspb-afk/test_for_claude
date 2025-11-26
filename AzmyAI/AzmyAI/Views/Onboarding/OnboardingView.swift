@@ -10,6 +10,7 @@ import SwiftUI
 struct OnboardingView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var userProfile: UserProfileViewModel
+    @ObservedObject var authService = AuthenticationService.shared
 
     @State private var currentStep = 0
     @State private var userName = ""
@@ -17,7 +18,7 @@ struct OnboardingView: View {
     @State private var selectedChronotype: Chronotype = .neutral
     @State private var selectedWorkStyle: WorkStyle = .balanced
 
-    private let totalSteps = 5
+    private let totalSteps = 6
 
     var body: some View {
         ZStack {
@@ -43,17 +44,20 @@ struct OnboardingView: View {
                     WelcomeStep(userName: $userName)
                         .tag(0)
 
-                    GoalsStep(selectedGoals: $selectedGoals)
+                    SignInStep(onContinue: { withAnimation { currentStep += 1 } })
                         .tag(1)
 
-                    ChronotypeStep(selectedChronotype: $selectedChronotype)
+                    GoalsStep(selectedGoals: $selectedGoals)
                         .tag(2)
 
-                    WorkStyleStep(selectedWorkStyle: $selectedWorkStyle)
+                    ChronotypeStep(selectedChronotype: $selectedChronotype)
                         .tag(3)
 
-                    PermissionsStep()
+                    WorkStyleStep(selectedWorkStyle: $selectedWorkStyle)
                         .tag(4)
+
+                    PermissionsStep()
+                        .tag(5)
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
                 .animation(.easeInOut(duration: 0.3), value: currentStep)
@@ -89,7 +93,8 @@ struct OnboardingView: View {
     private var canProceed: Bool {
         switch currentStep {
         case 0: return !userName.trimmingCharacters(in: .whitespaces).isEmpty
-        case 1: return !selectedGoals.isEmpty
+        case 1: return true // Sign-in step - always can proceed (optional)
+        case 2: return !selectedGoals.isEmpty
         default: return true
         }
     }
@@ -452,9 +457,182 @@ struct WorkStyleCard: View {
     }
 }
 
+// MARK: - Sign In Step
+struct SignInStep: View {
+    @EnvironmentObject var userProfile: UserProfileViewModel
+    @ObservedObject var authService = AuthenticationService.shared
+    @ObservedObject var googleCalendar = GoogleCalendarService.shared
+
+    @State private var isSigningIn = false
+    @State private var showError = false
+    @State private var errorMessage = ""
+
+    var onContinue: () -> Void
+
+    var body: some View {
+        VStack(spacing: AzmySpacing.lg) {
+            Spacer()
+
+            VStack(spacing: AzmySpacing.md) {
+                Image(systemName: "person.crop.circle.badge.checkmark")
+                    .font(.system(size: 60))
+                    .foregroundStyle(AzmyColors.gradientBlue)
+
+                Text("Sign In")
+                    .font(AzmyFonts.headline1())
+                    .foregroundColor(AzmyColors.textPrimary)
+
+                Text("Sign in to sync your data and\nconnect to Google Calendar")
+                    .font(AzmyFonts.body())
+                    .foregroundColor(AzmyColors.textSecondary)
+                    .multilineTextAlignment(.center)
+            }
+
+            Spacer()
+
+            VStack(spacing: AzmySpacing.md) {
+                // Google Sign-In
+                Button(action: signInWithGoogle) {
+                    HStack(spacing: AzmySpacing.sm) {
+                        Image(systemName: "g.circle.fill")
+                            .font(.title2)
+                        Text("Continue with Google")
+                            .font(AzmyFonts.bodyLarge())
+                            .fontWeight(.semibold)
+
+                        if isSigningIn {
+                            Spacer()
+                            ProgressView()
+                                .tint(.black)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, AzmySpacing.md)
+                    .background(Color.white)
+                    .foregroundColor(.black)
+                    .cornerRadius(AzmyRadius.medium)
+                }
+                .disabled(isSigningIn)
+
+                // Apple Sign-In
+                Button(action: signInWithApple) {
+                    HStack(spacing: AzmySpacing.sm) {
+                        Image(systemName: "apple.logo")
+                            .font(.title2)
+                        Text("Continue with Apple")
+                            .font(AzmyFonts.bodyLarge())
+                            .fontWeight(.semibold)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, AzmySpacing.md)
+                    .background(Color.white)
+                    .foregroundColor(.black)
+                    .cornerRadius(AzmyRadius.medium)
+                }
+                .disabled(isSigningIn)
+
+                // Skip
+                Button(action: onContinue) {
+                    Text("Skip for now")
+                        .font(AzmyFonts.body())
+                        .foregroundColor(AzmyColors.textSecondary)
+                        .underline()
+                }
+                .padding(.top, AzmySpacing.sm)
+                .disabled(isSigningIn)
+            }
+            .padding(.horizontal, AzmySpacing.lg)
+
+            // Show connected status
+            if authService.isAuthenticated {
+                HStack(spacing: AzmySpacing.xs) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                    Text("Signed in as \(authService.currentUser?.displayName ?? "User")")
+                        .font(AzmyFonts.caption())
+                        .foregroundColor(AzmyColors.textSecondary)
+                }
+                .padding(.top, AzmySpacing.sm)
+            }
+
+            Spacer()
+        }
+        .alert("Sign In Error", isPresented: $showError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(errorMessage)
+        }
+    }
+
+    private func signInWithGoogle() {
+        isSigningIn = true
+        Task {
+            do {
+                let user = try await authService.signInWithGoogle()
+                await MainActor.run {
+                    updateUserProfile(with: user)
+                    isSigningIn = false
+                    onContinue()
+                }
+            } catch {
+                await MainActor.run {
+                    isSigningIn = false
+                    if let authError = error as? AuthError, case .cancelled = authError {
+                        // Cancelled
+                    } else {
+                        errorMessage = error.localizedDescription
+                        showError = true
+                    }
+                }
+            }
+        }
+    }
+
+    private func signInWithApple() {
+        isSigningIn = true
+        Task {
+            do {
+                let user = try await authService.signInWithApple()
+                await MainActor.run {
+                    updateUserProfile(with: user)
+                    isSigningIn = false
+                    onContinue()
+                }
+            } catch {
+                await MainActor.run {
+                    isSigningIn = false
+                    if let authError = error as? AuthError, case .cancelled = authError {
+                        // Cancelled
+                    } else {
+                        errorMessage = error.localizedDescription
+                        showError = true
+                    }
+                }
+            }
+        }
+    }
+
+    private func updateUserProfile(with authUser: AuthenticatedUser) {
+        userProfile.profile.email = authUser.email
+        if userProfile.profile.name.isEmpty {
+            userProfile.profile.name = authUser.displayName
+        }
+        userProfile.profile.authProvider = authUser.provider.rawValue
+        userProfile.profile.authUserId = authUser.id
+        userProfile.profile.profileImageURL = authUser.profileImageURL
+
+        if authUser.provider == .google {
+            userProfile.profile.isGoogleCalendarConnected = true
+            userProfile.profile.preferGoogleCalendar = true
+        }
+    }
+}
+
 // MARK: - Permissions Step
 struct PermissionsStep: View {
     @EnvironmentObject var userProfile: UserProfileViewModel
+    @ObservedObject var authService = AuthenticationService.shared
+    @ObservedObject var googleCalendar = GoogleCalendarService.shared
 
     var body: some View {
         VStack(spacing: AzmySpacing.lg) {
@@ -472,9 +650,22 @@ struct PermissionsStep: View {
             .padding(.horizontal, AzmySpacing.md)
 
             VStack(spacing: AzmySpacing.md) {
+                // Google Calendar (if signed in with Google)
+                if authService.currentUser?.provider == .google {
+                    PermissionCard(
+                        icon: "calendar.badge.clock",
+                        title: "Google Calendar",
+                        description: "Sync events from your Google Calendar",
+                        isConnected: googleCalendar.isConnected
+                    ) {
+                        // Already connected via Google Sign-In
+                    }
+                }
+
+                // Local Calendar
                 PermissionCard(
                     icon: "calendar",
-                    title: "Calendar",
+                    title: "Device Calendar",
                     description: "Plan your day and create events automatically",
                     isConnected: userProfile.calendarService.isAuthorized
                 ) {

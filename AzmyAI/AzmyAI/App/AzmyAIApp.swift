@@ -15,6 +15,10 @@ struct AzmyAIApp: App {
     @StateObject private var plannerViewModel = PlannerViewModel()
     @StateObject private var quizViewModel = QuizViewModel()
 
+    // Shared services
+    private let authService = AuthenticationService.shared
+    private let googleCalendarService = GoogleCalendarService.shared
+
     var body: some Scene {
         WindowGroup {
             ContentView()
@@ -23,6 +27,18 @@ struct AzmyAIApp: App {
                 .environmentObject(chatViewModel)
                 .environmentObject(plannerViewModel)
                 .environmentObject(quizViewModel)
+                .onOpenURL { url in
+                    // Handle OAuth callback URLs
+                    handleOAuthCallback(url)
+                }
+        }
+    }
+
+    private func handleOAuthCallback(_ url: URL) {
+        // Handle Google OAuth callback
+        if url.scheme == "com.azmy.ai" {
+            // The callback is handled by ASWebAuthenticationSession
+            print("OAuth callback received: \(url)")
         }
     }
 }
