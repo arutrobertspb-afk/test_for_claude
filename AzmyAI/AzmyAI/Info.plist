@@ -61,5 +61,16 @@
 	</array>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>Google Sign-In</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.185785334554-i8n1ih7d6l763vteof9t8kro9r83rapo</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

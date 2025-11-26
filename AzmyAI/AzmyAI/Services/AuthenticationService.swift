@@ -47,7 +47,7 @@ class AuthenticationService: NSObject, ObservableObject {
     // Google OAuth Configuration
     // You need to replace these with your actual credentials
     private let googleClientID = "185785334554-i8n1ih7d6l763vteof9t8kro9r83rapo.apps.googleusercontent.com"
-    private let googleRedirectURI = "com.azmy.ai:/oauth2callback"
+    private let googleRedirectURI = "com.googleusercontent.apps.185785334554-i8n1ih7d6l763vteof9t8kro9r83rapo:/oauth2callback"
 
     // Apple Sign-In
     private var currentNonce: String?
@@ -125,7 +125,7 @@ class AuthenticationService: NSObject, ObservableObject {
         let callbackURL = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL, Error>) in
             let session = ASWebAuthenticationSession(
                 url: authURL,
-                callbackURLScheme: "com.azmy.ai"
+                callbackURLScheme: "com.googleusercontent.apps.185785334554-i8n1ih7d6l763vteof9t8kro9r83rapo"
             ) { callbackURL, error in
                 if let error = error {
                     continuation.resume(throwing: AuthError.authenticationFailed(error.localizedDescription))
