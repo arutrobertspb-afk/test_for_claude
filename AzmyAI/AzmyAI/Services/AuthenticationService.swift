@@ -46,7 +46,7 @@ class AuthenticationService: NSObject, ObservableObject {
 
     // Google OAuth Configuration
     // You need to replace these with your actual credentials
-    private let googleClientID = "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com"
+    private let googleClientID = "185785334554-i8n1ih7d6l763vteof9t8kro9r83rapo.apps.googleusercontent.com"
     private let googleRedirectURI = "com.azmy.ai:/oauth2callback"
 
     // Apple Sign-In
