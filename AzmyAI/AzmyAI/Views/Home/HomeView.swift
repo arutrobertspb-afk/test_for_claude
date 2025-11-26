@@ -1391,6 +1391,320 @@ struct AllEventsView: View {
     }
 }
 
+// MARK: - Location Data
+
+struct LocationData: Equatable {
+    let latitude: Double
+    let longitude: Double
+    let cityName: String
+    let countryName: String
+    let fullAddress: String
+
+    var displayName: String {
+        countryName.isEmpty ? cityName : "\(cityName), \(countryName)"
+    }
+
+    static let placeholder = LocationData(
+        latitude: 34.6937, longitude: 135.5023,
+        cityName: "Limassol", countryName: "Cyprus",
+        fullAddress: "Limassol, Cyprus"
+    )
+}
+
+// MARK: - Location Service
+
+import CoreLocation
+
+@MainActor
+class LocationService: NSObject, ObservableObject {
+    static let shared = LocationService()
+
+    private let locationManager = CLLocationManager()
+    private let geocoder = CLGeocoder()
+
+    @Published var currentLocation: LocationData?
+    @Published var authorizationStatus: CLAuthorizationStatus = .notDetermined
+    @Published var isLoading = false
+    @Published var errorMessage: String?
+
+    private var locationContinuation: CheckedContinuation<CLLocation?, Never>?
+
+    override init() {
+        super.init()
+        locationManager.delegate = self
+        locationManager.desiredAccuracy = kCLLocationAccuracyHundredMeters
+        authorizationStatus = locationManager.authorizationStatus
+    }
+
+    var hasLocationPermission: Bool {
+        authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways
+    }
+
+    func requestPermission() {
+        locationManager.requestWhenInUseAuthorization()
+    }
+
+    func startUpdatingLocation() {
+        guard hasLocationPermission else { requestPermission(); return }
+        isLoading = true
+        errorMessage = nil
+        locationManager.startUpdatingLocation()
+    }
+
+    func stopUpdatingLocation() {
+        locationManager.stopUpdatingLocation()
+    }
+
+    func getCurrentLocation() async -> LocationData? {
+        guard hasLocationPermission else { requestPermission(); return nil }
+        isLoading = true
+        errorMessage = nil
+        locationManager.requestLocation()
+
+        let location = await withCheckedContinuation { continuation in
+            self.locationContinuation = continuation
+            Task {
+                try? await Task.sleep(nanoseconds: 10_000_000_000)
+                if self.locationContinuation != nil {
+                    self.locationContinuation?.resume(returning: nil)
+                    self.locationContinuation = nil
+                }
+            }
+        }
+
+        guard let location = location else {
+            isLoading = false
+            errorMessage = "Could not get location"
+            return nil
+        }
+
+        let locationData = await reverseGeocode(location: location)
+        isLoading = false
+        if let data = locationData { currentLocation = data }
+        return locationData
+    }
+
+    private func reverseGeocode(location: CLLocation) async -> LocationData? {
+        do {
+            let placemarks = try await geocoder.reverseGeocodeLocation(location)
+            guard let placemark = placemarks.first else {
+                return LocationData(latitude: location.coordinate.latitude, longitude: location.coordinate.longitude,
+                                    cityName: "Unknown", countryName: "", fullAddress: "Unknown location")
+            }
+            let city = placemark.locality ?? placemark.administrativeArea ?? "Unknown"
+            let country = placemark.country ?? ""
+            let fullAddress = [placemark.thoroughfare, placemark.locality, placemark.administrativeArea, placemark.country]
+                .compactMap { $0 }.joined(separator: ", ")
+            return LocationData(latitude: location.coordinate.latitude, longitude: location.coordinate.longitude,
+                               cityName: city, countryName: country,
+                               fullAddress: fullAddress.isEmpty ? "\(city), \(country)" : fullAddress)
+        } catch {
+            return LocationData(latitude: location.coordinate.latitude, longitude: location.coordinate.longitude,
+                               cityName: "Unknown", countryName: "", fullAddress: "Unknown location")
+        }
+    }
+
+    func refreshLocation() { Task { _ = await getCurrentLocation() } }
+}
+
+extension LocationService: CLLocationManagerDelegate {
+    nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard let location = locations.last else { return }
+        Task { @MainActor in
+            if let continuation = self.locationContinuation {
+                continuation.resume(returning: location)
+                self.locationContinuation = nil
+                return
+            }
+            let locationData = await self.reverseGeocode(location: location)
+            self.currentLocation = locationData
+            self.isLoading = false
+        }
+    }
+
+    nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        Task { @MainActor in
+            self.errorMessage = error.localizedDescription
+            self.isLoading = false
+            self.locationContinuation?.resume(returning: nil)
+            self.locationContinuation = nil
+        }
+    }
+
+    nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        Task { @MainActor in
+            self.authorizationStatus = manager.authorizationStatus
+            if self.hasLocationPermission { self.startUpdatingLocation() }
+        }
+    }
+}
+
+// MARK: - Weather Data
+
+struct WeatherData: Equatable {
+    let temperature: Double
+    let temperatureUnit: String
+    let condition: WeatherCondition
+    let humidity: Int
+    let windSpeed: Double
+    let feelsLike: Double
+    let isDay: Bool
+    let lastUpdated: Date
+
+    var temperatureString: String {
+        let sign = temperature > 0 ? "+" : ""
+        return "\(sign)\(Int(temperature))°\(temperatureUnit)"
+    }
+
+    var icon: String { condition.icon(isDay: isDay) }
+    var iconColor: Color { condition.color(isDay: isDay) }
+
+    static let placeholder = WeatherData(
+        temperature: 21, temperatureUnit: "C", condition: .clear,
+        humidity: 65, windSpeed: 12, feelsLike: 22, isDay: true, lastUpdated: Date()
+    )
+}
+
+enum WeatherCondition: String {
+    case clear, partlyCloudy, cloudy, foggy, drizzle, rain, heavyRain, snow, thunderstorm, unknown
+
+    func icon(isDay: Bool) -> String {
+        switch self {
+        case .clear: return isDay ? "sun.max.fill" : "moon.fill"
+        case .partlyCloudy: return isDay ? "cloud.sun.fill" : "cloud.moon.fill"
+        case .cloudy: return "cloud.fill"
+        case .foggy: return "cloud.fog.fill"
+        case .drizzle: return "cloud.drizzle.fill"
+        case .rain: return "cloud.rain.fill"
+        case .heavyRain: return "cloud.heavyrain.fill"
+        case .snow: return "cloud.snow.fill"
+        case .thunderstorm: return "cloud.bolt.rain.fill"
+        case .unknown: return "questionmark.circle"
+        }
+    }
+
+    func color(isDay: Bool) -> Color {
+        switch self {
+        case .clear: return isDay ? .yellow : .purple
+        case .partlyCloudy: return isDay ? .orange : .indigo
+        case .cloudy: return .gray
+        case .foggy: return .gray.opacity(0.7)
+        case .drizzle, .rain: return .blue
+        case .heavyRain: return .blue.opacity(0.8)
+        case .snow: return .cyan
+        case .thunderstorm: return .purple
+        case .unknown: return .gray
+        }
+    }
+
+    static func fromWMOCode(_ code: Int) -> WeatherCondition {
+        switch code {
+        case 0: return .clear
+        case 1, 2: return .partlyCloudy
+        case 3: return .cloudy
+        case 45, 48: return .foggy
+        case 51, 53, 55, 56, 57: return .drizzle
+        case 61, 63, 66, 67, 80, 81: return .rain
+        case 65, 82: return .heavyRain
+        case 71, 73, 75, 77, 85, 86: return .snow
+        case 95, 96, 99: return .thunderstorm
+        default: return .unknown
+        }
+    }
+}
+
+private struct OpenMeteoResponse: Codable {
+    let current: CurrentWeather
+    struct CurrentWeather: Codable {
+        let temperature2m: Double
+        let relativeHumidity2m: Int
+        let apparentTemperature: Double
+        let isDay: Int
+        let weatherCode: Int
+        let windSpeed10m: Double
+        enum CodingKeys: String, CodingKey {
+            case temperature2m = "temperature_2m"
+            case relativeHumidity2m = "relative_humidity_2m"
+            case apparentTemperature = "apparent_temperature"
+            case isDay = "is_day"
+            case weatherCode = "weather_code"
+            case windSpeed10m = "wind_speed_10m"
+        }
+    }
+}
+
+// MARK: - Weather Service
+
+@MainActor
+class WeatherService: ObservableObject {
+    static let shared = WeatherService()
+
+    @Published var currentWeather: WeatherData?
+    @Published var isLoading = false
+    @Published var errorMessage: String?
+
+    private let baseURL = "https://api.open-meteo.com/v1/forecast"
+    private var lastFetchTime: Date?
+    private var cachedLatitude: Double?
+    private var cachedLongitude: Double?
+    private let cacheTimeout: TimeInterval = 600
+
+    func fetchWeather(latitude: Double, longitude: Double, forceRefresh: Bool = false) async -> WeatherData? {
+        if !forceRefresh, let cached = currentWeather, let lastFetch = lastFetchTime,
+           cachedLatitude == latitude, cachedLongitude == longitude,
+           Date().timeIntervalSince(lastFetch) < cacheTimeout {
+            return cached
+        }
+
+        isLoading = true
+        errorMessage = nil
+
+        var components = URLComponents(string: baseURL)!
+        components.queryItems = [
+            URLQueryItem(name: "latitude", value: String(latitude)),
+            URLQueryItem(name: "longitude", value: String(longitude)),
+            URLQueryItem(name: "current", value: "temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,wind_speed_10m"),
+            URLQueryItem(name: "timezone", value: "auto")
+        ]
+
+        guard let url = components.url else { isLoading = false; return nil }
+
+        do {
+            let (data, response) = try await URLSession.shared.data(from: url)
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+                isLoading = false; return nil
+            }
+            let decoded = try JSONDecoder().decode(OpenMeteoResponse.self, from: data)
+            let current = decoded.current
+            let weatherData = WeatherData(
+                temperature: current.temperature2m, temperatureUnit: "C",
+                condition: WeatherCondition.fromWMOCode(current.weatherCode),
+                humidity: current.relativeHumidity2m, windSpeed: current.windSpeed10m,
+                feelsLike: current.apparentTemperature, isDay: current.isDay == 1, lastUpdated: Date()
+            )
+            currentWeather = weatherData
+            lastFetchTime = Date()
+            cachedLatitude = latitude
+            cachedLongitude = longitude
+            isLoading = false
+            return weatherData
+        } catch {
+            isLoading = false
+            return nil
+        }
+    }
+
+    func fetchWeatherForCurrentLocation() async -> WeatherData? {
+        let locationService = LocationService.shared
+        guard let location = await locationService.getCurrentLocation() else {
+            return WeatherData.placeholder
+        }
+        return await fetchWeather(latitude: location.latitude, longitude: location.longitude)
+    }
+
+    func refresh() { Task { _ = await fetchWeatherForCurrentLocation() } }
+}
+
 #Preview {
     HomeView()
         .environmentObject(ChatViewModel())
