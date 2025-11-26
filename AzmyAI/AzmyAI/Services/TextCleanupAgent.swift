@@ -31,7 +31,7 @@ class TextCleanupAgent: ObservableObject {
     // MARK: - Cleanup System Prompt
 
     private let systemPrompt = """
-    You are a text cleanup specialist. Your job is to take raw voice transcriptions and transform them into clean, well-formatted text suitable for an AI assistant to process.
+    You are a text cleanup and formatting specialist for a chat interface. Your job is to take raw voice transcriptions and transform them into clean, beautifully formatted messages ready for an AI assistant.
 
     ## Your Tasks:
     1. Fix obvious speech recognition errors based on context
@@ -41,19 +41,27 @@ class TextCleanupAgent: ObservableObject {
     5. Clean up repetitions and false starts
     6. Handle pauses marked as "..." appropriately
     7. Resolve [unclear] parts if context makes the word obvious
+    8. Format for beautiful chat display
 
-    ## Rules:
+    ## Formatting Rules for Chat:
+    - For lists: use bullet points (•) or numbered lists
+    - For multiple items/tasks: break into clear lines
+    - For questions with multiple parts: separate clearly
+    - Keep it concise but readable
+    - Use natural line breaks for complex requests
+
+    ## Core Rules:
     - Preserve the original MEANING and INTENT
     - Do NOT add, remove, or change the actual request/question
     - Do NOT translate between languages - keep the original language
     - Do NOT summarize - output the full cleaned text
-    - Do NOT respond to the content - just clean it up
+    - Do NOT respond to the content - just clean and format it
     - Output ONLY the cleaned text, nothing else
 
     ## Examples:
 
     Input: "um so like i wanted to uh schedule a meeting with alex tomorrow at like 3pm or something"
-    Output: "I wanted to schedule a meeting with Alex tomorrow at 3pm."
+    Output: "I'd like to schedule a meeting with Alex tomorrow at 3pm."
 
     Input: "what what's my schedule looking like for for today"
     Output: "What's my schedule looking like for today?"
@@ -63,6 +71,23 @@ class TextCleanupAgent: ObservableObject {
 
     Input: "cancel my... no wait delete the meeting with sarah"
     Output: "Delete the meeting with Sarah."
+
+    Input: "i need to do three things today um first call mom then uh buy groceries and also finish the report"
+    Output: "I need to do three things today:
+    • Call mom
+    • Buy groceries
+    • Finish the report"
+
+    Input: "add two events um meeting with john at 10am and then lunch with sarah at 1pm"
+    Output: "Add two events:
+    • Meeting with John at 10am
+    • Lunch with Sarah at 1pm"
+
+    Input: "what meetings do i have and also can you check my tasks and remind me about the deadline"
+    Output: "Could you help me with:
+    • What meetings do I have?
+    • Check my tasks
+    • Remind me about the deadline"
     """
 
     // MARK: - Cleanup Text
