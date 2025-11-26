@@ -227,11 +227,11 @@ struct SignInView: View {
     }
 
     // MARK: - Update User Profile
+    // Automatically sync all user data from Google/Apple - no manual input needed
     private func updateUserProfile(with authUser: AuthenticatedUser) {
+        // Always use email and name from the auth provider (Google/Apple)
         userProfile.profile.email = authUser.email
-        if userProfile.profile.name.isEmpty {
-            userProfile.profile.name = authUser.displayName
-        }
+        userProfile.profile.name = authUser.displayName
         userProfile.profile.authProvider = authUser.provider.rawValue
         userProfile.profile.authUserId = authUser.id
         userProfile.profile.profileImageURL = authUser.profileImageURL
@@ -349,11 +349,11 @@ struct SignInButtonsCompact: View {
         }
     }
 
+    // Automatically sync all user data from Google/Apple - no manual input needed
     private func updateUserProfile(with authUser: AuthenticatedUser) {
+        // Always use email and name from the auth provider (Google/Apple)
         userProfile.profile.email = authUser.email
-        if userProfile.profile.name.isEmpty {
-            userProfile.profile.name = authUser.displayName
-        }
+        userProfile.profile.name = authUser.displayName
         userProfile.profile.authProvider = authUser.provider.rawValue
         userProfile.profile.authUserId = authUser.id
         userProfile.profile.profileImageURL = authUser.profileImageURL

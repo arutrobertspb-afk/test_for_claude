@@ -490,48 +490,259 @@ struct ChatInputBar: View {
     var isFocused: FocusState<Bool>.Binding
     let onSend: () -> Void
 
+    @StateObject private var audioService = AudioRecordingService.shared
+    @StateObject private var voicePipeline = VoicePipelineManager.shared
+
+    @State private var showVoiceRecording = false
+
     // Can send if text is not empty (processing doesn't block sending - user can queue messages)
     private var hasText: Bool {
         !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var body: some View {
-        HStack(alignment: .bottom, spacing: 12) {
-            // Attachment button
-            Button(action: {}) {
-                Image(systemName: "paperclip")
-                    .font(.system(size: 20))
-                    .foregroundColor(AzmyColors.textSecondary)
-            }
-            .frame(width: 32, height: 44)
-
-            // Text field - ALWAYS interactive
-            TextField("Type your message", text: $text, axis: .vertical)
-                .textFieldStyle(.plain)
-                .font(AzmyFonts.body())
-                .foregroundColor(AzmyColors.textPrimary)
-                .lineLimit(1...5)
-                .focused(isFocused)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .background(AzmyColors.backgroundSecondary)
-                .cornerRadius(AzmyRadius.large)
-                .overlay(
-                    RoundedRectangle(cornerRadius: AzmyRadius.large)
-                        .stroke(AzmyColors.separator, lineWidth: 1)
+        VStack(spacing: 0) {
+            // Voice recording overlay
+            if showVoiceRecording {
+                VoiceRecordingView(
+                    audioService: audioService,
+                    voicePipeline: voicePipeline,
+                    onComplete: { transcribedText in
+                        if let text = transcribedText {
+                            self.text = text
+                        }
+                        showVoiceRecording = false
+                    },
+                    onCancel: {
+                        audioService.cancelRecording()
+                        showVoiceRecording = false
+                    }
                 )
-
-            // Send button
-            Button(action: onSend) {
-                Image(systemName: "arrow.up.circle.fill")
-                    .font(.system(size: 32))
-                    .foregroundColor(hasText ? AzmyColors.accentBlue : AzmyColors.textTertiary)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
-            .disabled(!hasText)
+
+            HStack(alignment: .bottom, spacing: 12) {
+                // Voice input button (replaces attachment button)
+                Button(action: startVoiceInput) {
+                    Image(systemName: showVoiceRecording ? "waveform.circle.fill" : "mic.circle")
+                        .font(.system(size: 28))
+                        .foregroundColor(showVoiceRecording ? AzmyColors.accentBlue : AzmyColors.textSecondary)
+                        .symbolEffect(.pulse, isActive: showVoiceRecording)
+                }
+                .frame(width: 32, height: 44)
+
+                // Text field - ALWAYS interactive
+                TextField("Type or speak your message", text: $text, axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .font(AzmyFonts.body())
+                    .foregroundColor(AzmyColors.textPrimary)
+                    .lineLimit(1...5)
+                    .focused(isFocused)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(AzmyColors.backgroundSecondary)
+                    .cornerRadius(AzmyRadius.large)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: AzmyRadius.large)
+                            .stroke(showVoiceRecording ? AzmyColors.accentBlue : AzmyColors.separator, lineWidth: 1)
+                    )
+
+                // Send button
+                Button(action: onSend) {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.system(size: 32))
+                        .foregroundColor(hasText ? AzmyColors.accentBlue : AzmyColors.textTertiary)
+                }
+                .disabled(!hasText)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(AzmyColors.backgroundPrimary)
         }
+        .animation(.spring(response: 0.3), value: showVoiceRecording)
+    }
+
+    private func startVoiceInput() {
+        withAnimation {
+            showVoiceRecording.toggle()
+        }
+        if showVoiceRecording {
+            Task {
+                do {
+                    try await audioService.startRecording()
+                } catch {
+                    print("Failed to start recording: \(error)")
+                    showVoiceRecording = false
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Voice Recording View
+struct VoiceRecordingView: View {
+    @ObservedObject var audioService: AudioRecordingService
+    @ObservedObject var voicePipeline: VoicePipelineManager
+
+    let onComplete: (String?) -> Void
+    let onCancel: () -> Void
+
+    @State private var isProcessingVoice = false
+
+    var body: some View {
+        VStack(spacing: 16) {
+            // Status text
+            HStack {
+                if isProcessingVoice {
+                    Text(voicePipeline.processingStep.isEmpty ? "Processing..." : voicePipeline.processingStep)
+                        .font(AzmyFonts.bodySmall())
+                        .foregroundColor(AzmyColors.accentBlue)
+                } else if audioService.isRecording {
+                    Circle()
+                        .fill(Color.red)
+                        .frame(width: 8, height: 8)
+                    Text("Recording...")
+                        .font(AzmyFonts.bodySmall())
+                        .foregroundColor(AzmyColors.textSecondary)
+                    Spacer()
+                    Text(formatDuration(audioService.recordingDuration))
+                        .font(AzmyFonts.caption())
+                        .foregroundColor(AzmyColors.textTertiary)
+                        .monospacedDigit()
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16)
+
+            // Audio level visualization
+            if audioService.isRecording {
+                AudioLevelView(level: audioService.audioLevel)
+                    .frame(height: 40)
+                    .padding(.horizontal, 16)
+            }
+
+            // Processing indicator
+            if isProcessingVoice {
+                HStack(spacing: 12) {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                    Text("Transcribing with Voxtral...")
+                        .font(AzmyFonts.bodySmall())
+                        .foregroundColor(AzmyColors.textSecondary)
+                }
+            }
+
+            // Action buttons
+            HStack(spacing: 20) {
+                // Cancel button
+                Button(action: onCancel) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 44))
+                        .foregroundColor(AzmyColors.textTertiary)
+                }
+                .disabled(isProcessingVoice)
+
+                Spacer()
+
+                // Done button (stop and process)
+                Button(action: stopAndProcess) {
+                    ZStack {
+                        Circle()
+                            .fill(AzmyColors.accentBlue)
+                            .frame(width: 60, height: 60)
+
+                        if isProcessingVoice {
+                            ProgressView()
+                                .tint(.white)
+                        } else {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 24, weight: .bold))
+                                .foregroundColor(.white)
+                        }
+                    }
+                }
+                .disabled(isProcessingVoice || !audioService.isRecording)
+            }
+            .padding(.horizontal, 32)
+        }
+        .padding(.vertical, 16)
+        .background(AzmyColors.backgroundSecondary)
+        .cornerRadius(AzmyRadius.large)
         .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(AzmyColors.backgroundPrimary)
+        .padding(.bottom, 8)
+    }
+
+    private func stopAndProcess() {
+        guard let audioData = audioService.stopRecording() else {
+            onComplete(nil)
+            return
+        }
+
+        isProcessingVoice = true
+
+        Task {
+            // Process through voice pipeline (Voxtral + TextCleanup)
+            let result = await voicePipeline.processAudio(audioData)
+
+            await MainActor.run {
+                isProcessingVoice = false
+                onComplete(result)
+            }
+        }
+    }
+
+    private func formatDuration(_ duration: TimeInterval) -> String {
+        let minutes = Int(duration) / 60
+        let seconds = Int(duration) % 60
+        return String(format: "%d:%02d", minutes, seconds)
+    }
+}
+
+// MARK: - Audio Level Visualization
+struct AudioLevelView: View {
+    let level: Float
+
+    private let barCount = 20
+
+    var body: some View {
+        HStack(spacing: 3) {
+            ForEach(0..<barCount, id: \.self) { index in
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(barColor(for: index))
+                    .frame(width: 4)
+                    .frame(height: barHeight(for: index))
+            }
+        }
+    }
+
+    private func barHeight(for index: Int) -> CGFloat {
+        let threshold = Float(index) / Float(barCount)
+        let active = level > threshold
+        let baseHeight: CGFloat = 8
+        let maxHeight: CGFloat = 40
+
+        if active {
+            // Add some randomness for visual interest
+            let randomFactor = CGFloat.random(in: 0.7...1.0)
+            return min(maxHeight, baseHeight + CGFloat(level) * (maxHeight - baseHeight) * randomFactor)
+        } else {
+            return baseHeight
+        }
+    }
+
+    private func barColor(for index: Int) -> Color {
+        let threshold = Float(index) / Float(barCount)
+        if level > threshold {
+            if threshold > 0.8 {
+                return .red
+            } else if threshold > 0.6 {
+                return .orange
+            } else {
+                return AzmyColors.accentBlue
+            }
+        } else {
+            return AzmyColors.backgroundTertiary
+        }
     }
 }
 
