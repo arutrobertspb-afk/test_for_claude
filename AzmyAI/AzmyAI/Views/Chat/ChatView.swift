@@ -760,6 +760,370 @@ struct AudioLevelView: View {
     }
 }
 
+// MARK: - Voice Onboarding Manager
+
+class VoiceOnboardingManager: ObservableObject {
+    static let shared = VoiceOnboardingManager()
+
+    @Published var hasSeenOnboarding: Bool {
+        didSet {
+            UserDefaults.standard.set(hasSeenOnboarding, forKey: "hasSeenVoiceOnboarding")
+        }
+    }
+
+    init() {
+        self.hasSeenOnboarding = UserDefaults.standard.bool(forKey: "hasSeenVoiceOnboarding")
+    }
+
+    func markOnboardingSeen() {
+        hasSeenOnboarding = true
+    }
+}
+
+// MARK: - Telegram Voice Button
+
+struct TelegramVoiceButton: View {
+    @ObservedObject var audioService: AudioRecordingService
+    @ObservedObject var voicePipeline: VoicePipelineManager
+    @StateObject private var onboardingManager = VoiceOnboardingManager.shared
+
+    let onTranscription: (String) -> Void
+
+    @State private var isPressed = false
+    @State private var dragOffset: CGFloat = 0
+    @State private var isProcessing = false
+    @State private var recordingCancelled = false
+    @State private var showOnboarding = false
+    @State private var pulseAnimation = false
+    @State private var waveAnimation = false
+
+    private let cancelThreshold: CGFloat = -100
+
+    var body: some View {
+        ZStack {
+            if showOnboarding {
+                voiceOnboardingTooltip
+                    .transition(.asymmetric(
+                        insertion: .scale(scale: 0.8).combined(with: .opacity),
+                        removal: .opacity
+                    ))
+            }
+            voiceButton
+        }
+        .onAppear {
+            if !onboardingManager.hasSeenOnboarding {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                    withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                        showOnboarding = true
+                    }
+                }
+            }
+        }
+    }
+
+    private var voiceOnboardingTooltip: some View {
+        VStack(alignment: .trailing, spacing: 8) {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(AzmyColors.accentBlue.opacity(0.2))
+                        .frame(width: 40, height: 40)
+                        .scaleEffect(pulseAnimation ? 1.3 : 1.0)
+                    Image(systemName: "mic.fill")
+                        .font(.system(size: 18))
+                        .foregroundColor(AzmyColors.accentBlue)
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Voice Messages")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white)
+                    Text("Hold to record, release to send")
+                        .font(.system(size: 12))
+                        .foregroundColor(AzmyColors.textSecondary)
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.left")
+                            .font(.system(size: 10))
+                        Text("Slide left to cancel")
+                            .font(.system(size: 11))
+                    }
+                    .foregroundColor(AzmyColors.textTertiary)
+                }
+                Spacer()
+                Button(action: {
+                    withAnimation(.spring(response: 0.3)) {
+                        showOnboarding = false
+                        onboardingManager.markOnboardingSeen()
+                    }
+                }) {
+                    Text("Got it")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(AzmyColors.accentBlue)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(AzmyColors.accentBlue.opacity(0.15))
+                        .cornerRadius(12)
+                }
+            }
+            .padding(16)
+            .background(AzmyColors.backgroundCard)
+            .cornerRadius(16)
+            .shadow(color: .black.opacity(0.3), radius: 10, x: 0, y: 5)
+        }
+        .frame(width: 300)
+        .offset(x: -100, y: -90)
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1).repeatForever(autoreverses: true)) {
+                pulseAnimation = true
+            }
+        }
+    }
+
+    private var voiceButton: some View {
+        ZStack {
+            if isPressed || audioService.isRecording {
+                Circle()
+                    .fill(AzmyColors.accentBlue.opacity(0.15))
+                    .frame(width: 60, height: 60)
+                    .scaleEffect(waveAnimation ? 1.8 : 1.0)
+                    .opacity(waveAnimation ? 0 : 0.5)
+                Circle()
+                    .fill(AzmyColors.accentBlue.opacity(0.1))
+                    .frame(width: 60, height: 60)
+                    .scaleEffect(waveAnimation ? 1.4 : 1.0)
+                    .opacity(waveAnimation ? 0.3 : 0.5)
+            }
+            ZStack {
+                Circle()
+                    .fill(buttonBackgroundColor)
+                    .frame(width: 44, height: 44)
+                    .scaleEffect(isPressed ? 1.2 : 1.0)
+                if isProcessing {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                        .tint(.white)
+                } else {
+                    Image(systemName: buttonIcon)
+                        .font(.system(size: isPressed ? 22 : 20, weight: .medium))
+                        .foregroundColor(buttonIconColor)
+                }
+            }
+            .offset(x: dragOffset * 0.3)
+        }
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { value in handleDragChange(value) }
+                .onEnded { value in handleDragEnd(value) }
+        )
+        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isPressed)
+        .animation(.spring(response: 0.3), value: dragOffset)
+        .onChange(of: audioService.isRecording) { _, isRecording in
+            if isRecording {
+                withAnimation(.easeOut(duration: 1).repeatForever(autoreverses: false)) {
+                    waveAnimation = true
+                }
+            } else {
+                waveAnimation = false
+            }
+        }
+    }
+
+    private var buttonBackgroundColor: Color {
+        if recordingCancelled { return .red.opacity(0.8) }
+        else if isPressed || audioService.isRecording { return AzmyColors.accentBlue }
+        else { return Color.clear }
+    }
+
+    private var buttonIcon: String {
+        if recordingCancelled { return "xmark" }
+        else if audioService.isRecording { return "mic.fill" }
+        else { return "mic" }
+    }
+
+    private var buttonIconColor: Color {
+        if isPressed || audioService.isRecording || recordingCancelled { return .white }
+        return AzmyColors.textSecondary
+    }
+
+    private func handleDragChange(_ value: DragGesture.Value) {
+        if showOnboarding {
+            withAnimation {
+                showOnboarding = false
+                onboardingManager.markOnboardingSeen()
+            }
+        }
+        if !isPressed && !isProcessing {
+            isPressed = true
+            recordingCancelled = false
+            Task {
+                do {
+                    try await audioService.startRecording()
+                    let generator = UIImpactFeedbackGenerator(style: .medium)
+                    generator.impactOccurred()
+                } catch {
+                    isPressed = false
+                }
+            }
+        }
+        if value.translation.width < 0 {
+            dragOffset = max(value.translation.width, cancelThreshold * 1.5)
+            if dragOffset < cancelThreshold && !recordingCancelled {
+                recordingCancelled = true
+                audioService.cancelRecording()
+                isPressed = false
+                waveAnimation = false
+                let generator = UIImpactFeedbackGenerator(style: .heavy)
+                generator.impactOccurred()
+            }
+        }
+    }
+
+    private func handleDragEnd(_ value: DragGesture.Value) {
+        isPressed = false
+        dragOffset = 0
+        if recordingCancelled {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { recordingCancelled = false }
+            return
+        }
+        if audioService.isRecording {
+            guard let audioData = audioService.stopRecording() else { return }
+            isProcessing = true
+            Task {
+                if let result = await voicePipeline.processAudio(audioData) {
+                    await MainActor.run { onTranscription(result) }
+                }
+                await MainActor.run { isProcessing = false }
+            }
+        }
+    }
+}
+
+// MARK: - Voice Recording Overlay
+
+struct VoiceRecordingOverlay: View {
+    @ObservedObject var audioService: AudioRecordingService
+    @ObservedObject var voicePipeline: VoicePipelineManager
+    @State private var wavePhase: CGFloat = 0
+
+    var body: some View {
+        HStack(spacing: 16) {
+            HStack(spacing: 6) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 12, weight: .medium))
+                    .offset(x: sin(wavePhase) * 3)
+                Text("Slide to cancel")
+                    .font(.system(size: 13))
+            }
+            .foregroundColor(AzmyColors.textTertiary)
+            Spacer()
+            HStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(Color.red.opacity(0.3))
+                        .frame(width: 16, height: 16)
+                        .scaleEffect(audioService.isRecording ? 1.5 : 1.0)
+                        .animation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true), value: audioService.isRecording)
+                    Circle()
+                        .fill(Color.red)
+                        .frame(width: 8, height: 8)
+                }
+                Text(formatDuration(audioService.recordingDuration))
+                    .font(.system(size: 15, weight: .medium).monospacedDigit())
+                    .foregroundColor(.white)
+                    .contentTransition(.numericText())
+                VoiceWaveform(level: audioService.audioLevel)
+                    .frame(width: 50, height: 24)
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(AzmyColors.backgroundCard)
+                .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
+        )
+        .padding(.horizontal, 16)
+        .onAppear {
+            withAnimation(.linear(duration: 1).repeatForever(autoreverses: false)) {
+                wavePhase = .pi * 2
+            }
+        }
+    }
+
+    private func formatDuration(_ duration: TimeInterval) -> String {
+        String(format: "%d:%02d", Int(duration) / 60, Int(duration) % 60)
+    }
+}
+
+// MARK: - Voice Waveform
+
+struct VoiceWaveform: View {
+    let level: Float
+    private let barCount = 8
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(0..<barCount, id: \.self) { index in
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(barColor(index))
+                    .frame(width: 3, height: barHeight(index))
+                    .animation(.spring(response: 0.15, dampingFraction: 0.5), value: level)
+            }
+        }
+    }
+
+    private func barHeight(_ index: Int) -> CGFloat {
+        let baseHeight: CGFloat = 4
+        let maxHeight: CGFloat = 24
+        let waveOffset = sin(Double(index) * 0.8 + Double(level) * 10) * 0.3
+        let adjustedLevel = max(0, min(1, Double(level) + waveOffset))
+        return baseHeight + CGFloat(adjustedLevel) * (maxHeight - baseHeight)
+    }
+
+    private func barColor(_ index: Int) -> Color {
+        let threshold = Float(index) / Float(barCount)
+        if level > threshold * 0.8 {
+            return threshold > 0.7 ? .orange : AzmyColors.accentBlue
+        }
+        return AzmyColors.textTertiary.opacity(0.5)
+    }
+}
+
+// MARK: - Voice Processing View
+
+struct VoiceProcessingView: View {
+    let processingStep: String
+    @State private var rotation: Double = 0
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .stroke(AzmyColors.accentBlue.opacity(0.3), lineWidth: 3)
+                    .frame(width: 24, height: 24)
+                Circle()
+                    .trim(from: 0, to: 0.7)
+                    .stroke(AzmyColors.accentBlue, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                    .frame(width: 24, height: 24)
+                    .rotationEffect(.degrees(rotation))
+            }
+            Text(processingStep.isEmpty ? "Processing..." : processingStep)
+                .font(.system(size: 13))
+                .foregroundColor(AzmyColors.textSecondary)
+            Spacer()
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 12)
+        .background(AzmyColors.backgroundCard)
+        .cornerRadius(16)
+        .padding(.horizontal, 16)
+        .onAppear {
+            withAnimation(.linear(duration: 1).repeatForever(autoreverses: false)) {
+                rotation = 360
+            }
+        }
+    }
+}
+
 #Preview {
     ChatView()
         .environmentObject(ChatViewModel())
