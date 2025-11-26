@@ -58,9 +58,14 @@ struct ChatView: View {
                         .id(message.id)
                     }
 
-                    if chatViewModel.isTyping {
-                        TypingIndicator()
-                            .id("typing")
+                    // Show thinking indicator with retry info
+                    if chatViewModel.isThinking || chatViewModel.isTyping {
+                        ThinkingIndicator(
+                            retryAttempt: chatViewModel.currentRetryAttempt,
+                            maxRetries: chatViewModel.maxRetryAttempts
+                        )
+                        .id("thinking")
+                        .transition(.opacity.combined(with: .scale))
                     }
                 }
                 .padding(.horizontal, 16)
@@ -70,6 +75,9 @@ struct ChatView: View {
                 scrollToBottom(proxy: proxy)
             }
             .onChange(of: chatViewModel.messages.last?.displayedContent) { _, _ in
+                scrollToBottom(proxy: proxy)
+            }
+            .onChange(of: chatViewModel.isThinking) { _, _ in
                 scrollToBottom(proxy: proxy)
             }
         }
@@ -326,6 +334,103 @@ struct TypingIndicator: View {
     }
 }
 
+// MARK: - Thinking Indicator (with retry info)
+struct ThinkingIndicator: View {
+    let retryAttempt: Int
+    let maxRetries: Int
+
+    @State private var rotationAngle: Double = 0
+    @State private var pulseScale: CGFloat = 1.0
+    let timer = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 8) {
+            // Animated avatar with pulse effect
+            Circle()
+                .fill(AzmyColors.gradientBlue)
+                .frame(width: 32, height: 32)
+                .overlay(
+                    Image(systemName: "brain.head.profile")
+                        .font(.system(size: 14))
+                        .foregroundColor(.white)
+                        .rotationEffect(.degrees(rotationAngle))
+                )
+                .scaleEffect(pulseScale)
+
+            VStack(alignment: .leading, spacing: 4) {
+                // Main thinking message
+                HStack(spacing: 6) {
+                    // Animated thinking dots
+                    ThinkingDots()
+
+                    Text(thinkingText)
+                        .font(AzmyFonts.bodySmall())
+                        .foregroundColor(AzmyColors.textSecondary)
+                }
+
+                // Show retry info if retrying
+                if retryAttempt > 1 {
+                    Text("Attempt \(retryAttempt) of \(maxRetries)")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(AzmyColors.textTertiary)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(AzmyColors.backgroundCard)
+            .cornerRadius(16)
+
+            Spacer()
+        }
+        .onReceive(timer) { _ in
+            withAnimation(.easeInOut(duration: 0.3)) {
+                rotationAngle = (rotationAngle + 5).truncatingRemainder(dividingBy: 360)
+            }
+        }
+        .onAppear {
+            withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
+                pulseScale = 1.1
+            }
+        }
+    }
+
+    private var thinkingText: String {
+        if retryAttempt > 1 {
+            return "Reconnecting..."
+        }
+        return "Thinking..."
+    }
+}
+
+// MARK: - Thinking Dots Animation
+struct ThinkingDots: View {
+    @State private var phase: Int = 0
+    let timer = Timer.publish(every: 0.3, on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        HStack(spacing: 3) {
+            ForEach(0..<3, id: \.self) { index in
+                Circle()
+                    .fill(dotColor(for: index))
+                    .frame(width: 6, height: 6)
+                    .scaleEffect(phase == index ? 1.3 : 1.0)
+            }
+        }
+        .onReceive(timer) { _ in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                phase = (phase + 1) % 3
+            }
+        }
+    }
+
+    private func dotColor(for index: Int) -> Color {
+        if phase == index {
+            return AzmyColors.accentBlue
+        }
+        return AzmyColors.textTertiary
+    }
+}
+
 // MARK: - Quick Prompts Bar
 struct QuickPromptsBar: View {
     let onSelect: (QuickPrompt) -> Void
@@ -385,6 +490,7 @@ struct ChatInputBar: View {
     var isFocused: FocusState<Bool>.Binding
     let onSend: () -> Void
 
+    // Can always type, but can only send when not processing and text is not empty
     private var canSend: Bool {
         !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isTyping
     }
@@ -400,7 +506,7 @@ struct ChatInputBar: View {
     }
 
     private var textField: some View {
-        TextField("Ask Azmy anything...", text: $text, axis: .vertical)
+        TextField("Type your message", text: $text, axis: .vertical)
             .textFieldStyle(.plain)
             .font(AzmyFonts.body())
             .foregroundColor(AzmyColors.textPrimary)
@@ -414,13 +520,24 @@ struct ChatInputBar: View {
                 RoundedRectangle(cornerRadius: AzmyRadius.large)
                     .stroke(AzmyColors.separator, lineWidth: 1)
             )
+            // TextField is never disabled - user can always type
     }
 
     private var sendButton: some View {
         Button(action: onSend) {
-            Image(systemName: "arrow.up.circle.fill")
-                .font(.system(size: 32))
-                .foregroundColor(canSend ? AzmyColors.accentBlue : AzmyColors.textTertiary)
+            ZStack {
+                // Show loading indicator when processing
+                if isTyping {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: AzmyColors.accentBlue))
+                        .scaleEffect(0.8)
+                } else {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.system(size: 32))
+                        .foregroundColor(canSend ? AzmyColors.accentBlue : AzmyColors.textTertiary)
+                }
+            }
+            .frame(width: 32, height: 32)
         }
         .disabled(!canSend)
     }

@@ -10,6 +10,9 @@ class ChatViewModel: ObservableObject {
     @Published var messages: [ChatMessage] = []
     @Published var inputText: String = ""
     @Published var isTyping: Bool = false
+    @Published var isThinking: Bool = false
+    @Published var currentRetryAttempt: Int = 0
+    @Published var maxRetryAttempts: Int = 3
     @Published var error: String?
 
     private let aiService = AzmyAIService.shared
@@ -23,6 +26,21 @@ class ChatViewModel: ObservableObject {
     private let streamingInterval: TimeInterval = 0.02
 
     init() {
+        // Subscribe to AI service retry state
+        aiService.$currentRetryAttempt
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] attempt in
+                self?.currentRetryAttempt = attempt
+            }
+            .store(in: &cancellables)
+
+        aiService.$isProcessing
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] processing in
+                self?.isThinking = processing
+            }
+            .store(in: &cancellables)
+
         // Add welcome message with streaming effect
         addWelcomeMessage()
     }

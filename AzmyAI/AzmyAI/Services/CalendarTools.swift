@@ -324,12 +324,48 @@ struct CalendarTools {
     )
 }
 
+// MARK: - Event Colors Palette
+struct EventColorPalette {
+    // Array of colors for events - each event on the same day gets a different color
+    static let colors: [(red: Double, green: Double, blue: Double, name: String)] = [
+        (0.35, 0.55, 0.85, "blue"),      // Blue
+        (0.95, 0.45, 0.35, "red"),       // Red/Coral
+        (0.30, 0.75, 0.50, "green"),     // Green
+        (0.95, 0.60, 0.25, "orange"),    // Orange
+        (0.70, 0.45, 0.85, "purple"),    // Purple
+        (0.90, 0.75, 0.25, "yellow"),    // Yellow/Gold
+        (0.85, 0.45, 0.65, "pink"),      // Pink
+        (0.40, 0.75, 0.80, "teal")       // Teal
+    ]
+
+    static func colorForIndex(_ index: Int) -> (red: Double, green: Double, blue: Double) {
+        let color = colors[index % colors.count]
+        return (color.red, color.green, color.blue)
+    }
+
+    static func colorForName(_ name: String?) -> (red: Double, green: Double, blue: Double)? {
+        guard let name = name?.lowercased() else { return nil }
+        return colors.first { $0.name == name }.map { ($0.red, $0.green, $0.blue) }
+    }
+}
+
 // MARK: - Calendar Tool Executor
 class CalendarToolExecutor {
     private let eventStore = EKEventStore()
 
     init() {
         print("📅 CalendarToolExecutor initialized")
+    }
+
+    // Get the count of events on a specific day to assign unique color
+    private func getEventCountForDay(_ date: Date) -> Int {
+        let calendar = Calendar.current
+        let startOfDay = calendar.startOfDay(for: date)
+        let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay)!
+
+        let predicate = eventStore.predicateForEvents(withStart: startOfDay, end: endOfDay, calendars: nil)
+        let events = eventStore.events(matching: predicate)
+        return events.count
     }
 
     // MARK: - Ensure Authorization (async)

@@ -66,6 +66,18 @@ class CalendarService: ObservableObject {
         calendars = eventStore.calendars(for: .event)
     }
 
+    // MARK: - Event Colors Palette (for unique colors per day)
+    private static let eventColors: [(red: Double, green: Double, blue: Double)] = [
+        (0.35, 0.55, 0.85),   // Blue
+        (0.95, 0.45, 0.35),   // Red/Coral
+        (0.30, 0.75, 0.50),   // Green
+        (0.95, 0.60, 0.25),   // Orange
+        (0.70, 0.45, 0.85),   // Purple
+        (0.90, 0.75, 0.25),   // Yellow/Gold
+        (0.85, 0.45, 0.65),   // Pink
+        (0.40, 0.75, 0.80)    // Teal
+    ]
+
     // MARK: - Fetch Events
     func fetchEvents(from startDate: Date, to endDate: Date) async throws -> [CalendarEvent] {
         guard isAuthorized else {
@@ -75,9 +87,25 @@ class CalendarService: ObservableObject {
         let predicate = eventStore.predicateForEvents(withStart: startDate, end: endDate, calendars: nil)
         let ekEvents = eventStore.events(matching: predicate)
 
-        let calendarEvents = ekEvents.map { event -> CalendarEvent in
-            // Extract calendar color
-            let (red, green, blue) = extractCalendarColor(from: event)
+        // Sort events by start date
+        let sortedEvents = ekEvents.sorted { $0.startDate < $1.startDate }
+
+        // Group events by day and assign unique colors within each day
+        var dayEventCounts: [String: Int] = [:]
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+
+        let calendarEvents = sortedEvents.map { event -> CalendarEvent in
+            // Get day key for grouping
+            let dayKey = dateFormatter.string(from: event.startDate)
+
+            // Get current count for this day and increment
+            let eventIndexInDay = dayEventCounts[dayKey, default: 0]
+            dayEventCounts[dayKey] = eventIndexInDay + 1
+
+            // Assign color based on index within the day
+            let colorIndex = eventIndexInDay % Self.eventColors.count
+            let colorTuple = Self.eventColors[colorIndex]
 
             return CalendarEvent(
                 id: UUID(),
@@ -90,9 +118,9 @@ class CalendarService: ObservableObject {
                 category: categorizeEvent(event),
                 isAIGenerated: false,
                 calendarIdentifier: event.eventIdentifier,
-                colorRed: red,
-                colorGreen: green,
-                colorBlue: blue
+                colorRed: colorTuple.red,
+                colorGreen: colorTuple.green,
+                colorBlue: colorTuple.blue
             )
         }
 
@@ -165,6 +193,11 @@ class CalendarService: ObservableObject {
             throw error
         }
 
+        // Get current event count for this day to assign unique color
+        let eventCountForDay = getEventCountForDay(startDate)
+        let colorIndex = eventCountForDay % Self.eventColors.count
+        let colorTuple = Self.eventColors[colorIndex]
+
         return CalendarEvent(
             title: title,
             startDate: startDate,
@@ -174,8 +207,21 @@ class CalendarService: ObservableObject {
             notes: notes,
             category: .other,
             isAIGenerated: true,
-            calendarIdentifier: event.eventIdentifier
+            calendarIdentifier: event.eventIdentifier,
+            colorRed: colorTuple.red,
+            colorGreen: colorTuple.green,
+            colorBlue: colorTuple.blue
         )
+    }
+
+    // MARK: - Get event count for a day
+    private func getEventCountForDay(_ date: Date) -> Int {
+        let calendar = Calendar.current
+        let startOfDay = calendar.startOfDay(for: date)
+        let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay)!
+
+        let predicate = eventStore.predicateForEvents(withStart: startOfDay, end: endOfDay, calendars: nil)
+        return eventStore.events(matching: predicate).count
     }
 
     // MARK: - Delete Event

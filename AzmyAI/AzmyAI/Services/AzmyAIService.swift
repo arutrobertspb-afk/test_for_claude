@@ -180,6 +180,8 @@ class AzmyAIService: ObservableObject {
     private let toolExecutor = CalendarToolExecutor()
 
     @Published var isProcessing = false
+    @Published var currentRetryAttempt: Int = 0
+    @Published var maxRetryAttempts: Int = 3
 
     init() {
         // Load API key from environment or config
@@ -188,8 +190,16 @@ class AzmyAIService: ObservableObject {
 
     // MARK: - Send Message
     func sendMessage(_ userMessage: String) async -> String {
-        await MainActor.run { isProcessing = true }
-        defer { Task { @MainActor in isProcessing = false } }
+        await MainActor.run {
+            isProcessing = true
+            currentRetryAttempt = 0
+        }
+        defer {
+            Task { @MainActor in
+                isProcessing = false
+                currentRetryAttempt = 0
+            }
+        }
 
         // Add user message to memory
         memory.addMessage(role: "user", content: userMessage, importance: 5)
@@ -197,47 +207,73 @@ class AzmyAIService: ObservableObject {
         // Build messages array with context
         var messages = buildMessagesWithContext(userMessage: userMessage)
 
-        // First API call with tools
-        guard let response = await callMistralAPI(messages: messages, includeTools: true) else {
-            return "I'm having trouble connecting right now. Please try again."
-        }
+        // Retry logic with 3 attempts
+        var lastError: String = "I'm having trouble connecting right now. Please try again."
 
-        // Check for tool calls
-        if let toolCalls = response.tool_calls, !toolCalls.isEmpty {
-            // Execute tools and get results
-            var toolResults: [MistralMessage] = []
+        for attempt in 1...maxRetryAttempts {
+            await MainActor.run { currentRetryAttempt = attempt }
+            print("🔄 API attempt \(attempt) of \(maxRetryAttempts)")
 
-            for toolCall in toolCalls {
-                let result = await executeToolCall(toolCall)
-                toolResults.append(MistralMessage(
-                    role: "tool",
-                    content: result,
-                    toolCallId: toolCall.id
-                ))
+            // First API call with tools
+            if let response = await callMistralAPI(messages: messages, includeTools: true) {
+                // Check for tool calls
+                if let toolCalls = response.tool_calls, !toolCalls.isEmpty {
+                    // Execute tools and get results
+                    var toolResults: [MistralMessage] = []
+
+                    for toolCall in toolCalls {
+                        let result = await executeToolCall(toolCall)
+                        toolResults.append(MistralMessage(
+                            role: "tool",
+                            content: result,
+                            toolCallId: toolCall.id
+                        ))
+                    }
+
+                    // Add assistant message with tool calls
+                    messages.append(MistralMessage(
+                        role: "assistant",
+                        content: response.content ?? "",
+                        toolCalls: toolCalls
+                    ))
+
+                    // Add tool results
+                    messages.append(contentsOf: toolResults)
+
+                    // Second API call for final response (with retry)
+                    for finalAttempt in 1...maxRetryAttempts {
+                        await MainActor.run { currentRetryAttempt = finalAttempt }
+
+                        if let finalResponse = await callMistralAPI(messages: messages, includeTools: false) {
+                            let reply = finalResponse.content ?? "Done!"
+                            memory.addMessage(role: "assistant", content: reply, importance: 5)
+                            return reply
+                        }
+
+                        // Wait before retrying (exponential backoff)
+                        if finalAttempt < maxRetryAttempts {
+                            let delay = pow(2.0, Double(finalAttempt - 1))
+                            print("⏳ Waiting \(delay) seconds before retry...")
+                            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                        }
+                    }
+                } else {
+                    // No tool calls, return direct response
+                    let reply = response.content ?? "I'm not sure how to help with that."
+                    memory.addMessage(role: "assistant", content: reply, importance: 5)
+                    return reply
+                }
             }
 
-            // Add assistant message with tool calls
-            messages.append(MistralMessage(
-                role: "assistant",
-                content: response.content ?? "",
-                toolCalls: toolCalls
-            ))
-
-            // Add tool results
-            messages.append(contentsOf: toolResults)
-
-            // Second API call for final response
-            if let finalResponse = await callMistralAPI(messages: messages, includeTools: false) {
-                let reply = finalResponse.content ?? "Done!"
-                memory.addMessage(role: "assistant", content: reply, importance: 5)
-                return reply
+            // Wait before retrying (exponential backoff: 1s, 2s, 4s)
+            if attempt < maxRetryAttempts {
+                let delay = pow(2.0, Double(attempt - 1))
+                print("⏳ Waiting \(delay) seconds before retry...")
+                try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
             }
         }
 
-        // No tool calls, return direct response
-        let reply = response.content ?? "I'm not sure how to help with that."
-        memory.addMessage(role: "assistant", content: reply, importance: 5)
-        return reply
+        return lastError
     }
 
     // MARK: - Build Messages with Context
