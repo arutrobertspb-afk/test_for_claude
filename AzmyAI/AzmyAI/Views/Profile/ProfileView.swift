@@ -2,7 +2,7 @@
 //  ProfileView.swift
 //  AzmyAI
 //
-//  Dark theme profile and settings
+//  Settings screen matching Figma design
 //
 
 import SwiftUI
@@ -11,477 +11,275 @@ struct ProfileView: View {
     @EnvironmentObject var userProfile: UserProfileViewModel
     @EnvironmentObject var appState: AppState
 
-    @State private var showAPIKeySheet = false
-    @State private var showResetAlert = false
+    @State private var isPermissionExpanded = false
+    @State private var allowAppAccess = true
+    @State private var googleAccountAccess = true
+    @State private var microphoneAccess = true
+    @State private var calendarAccess = true
+    @State private var notificationsEnabled = true
+    @State private var showLogoutAlert = false
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                AzmyColors.backgroundPrimary
-                    .ignoresSafeArea()
+        ZStack {
+            AzmyColors.backgroundPrimary
+                .ignoresSafeArea()
 
-                List {
-                    // Profile Header
-                    Section {
-                        ProfileHeader(profile: userProfile.profile)
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Email Section
+                    SettingsSection(title: "Email") {
+                        EmailRow(email: userProfile.profile.email.isEmpty ? "user@example.com" : userProfile.profile.email)
                     }
-                    .listRowBackground(Color.clear)
 
-                    // Personality & Preferences
-                    Section("Your Profile") {
-                        if let traits = userProfile.profile.personalityTraits {
-                            ProfileRow(
-                                icon: "sunrise.fill",
-                                title: "Chronotype",
-                                value: traits.chronotype.rawValue
+                    // Permission Section
+                    SettingsSection(title: "Permission") {
+                        VStack(spacing: 0) {
+                            // Main toggle with expand
+                            PermissionMainRow(
+                                isExpanded: $isPermissionExpanded,
+                                isEnabled: $allowAppAccess
                             )
 
-                            ProfileRow(
-                                icon: "bolt.fill",
-                                title: "Energy Pattern",
-                                value: traits.energyPattern.rawValue
-                            )
+                            // Expandable content
+                            if isPermissionExpanded {
+                                VStack(spacing: 0) {
+                                    Divider()
+                                        .background(AzmyColors.separator)
 
-                            ProfileRow(
-                                icon: "briefcase.fill",
-                                title: "Work Style",
-                                value: traits.workStyle.rawValue
-                            )
-                        }
+                                    PermissionSubRow(
+                                        title: "Google account access",
+                                        isEnabled: $googleAccountAccess
+                                    )
 
-                        NavigationLink {
-                            GoalsEditView()
-                        } label: {
-                            ProfileRow(
-                                icon: "target",
-                                title: "Goals",
-                                value: "\(userProfile.profile.lifestylePreferences?.primaryGoals.count ?? 0) selected"
-                            )
+                                    PermissionSubRow(
+                                        title: "Microphone access",
+                                        isEnabled: $microphoneAccess
+                                    )
+
+                                    PermissionSubRow(
+                                        title: "Calendar access",
+                                        isEnabled: $calendarAccess
+                                    )
+                                }
+                                .transition(.opacity.combined(with: .move(edge: .top)))
+                            }
                         }
+                        .animation(.easeInOut(duration: 0.2), value: isPermissionExpanded)
+
+                        Text("Take control over what Azmy can access to support you best.")
+                            .font(.system(size: 13))
+                            .foregroundColor(AzmyColors.textTertiary)
+                            .padding(.horizontal, 16)
+                            .padding(.top, 8)
                     }
-                    .listRowBackground(AzmyColors.backgroundCard)
 
-                    // Connections
-                    Section("Connections") {
-                        ConnectionRow(
-                            icon: "calendar",
-                            title: "Calendar",
-                            isConnected: userProfile.calendarService.isAuthorized
-                        ) {
-                            Task { await userProfile.requestCalendarAccess() }
-                        }
-
-                        ConnectionRow(
-                            icon: "heart.fill",
-                            title: "Apple Health",
-                            isConnected: userProfile.healthService.isAuthorized
-                        ) {
-                            Task { await userProfile.requestHealthAccess() }
-                        }
+                    // Notification Section
+                    SettingsSection(title: "Notification") {
+                        SettingsToggleRow(
+                            title: "Enable notifications",
+                            isEnabled: $notificationsEnabled
+                        )
                     }
-                    .listRowBackground(AzmyColors.backgroundCard)
 
-                    // Settings
-                    Section("Settings") {
-                        NavigationLink {
-                            NotificationSettingsView()
-                        } label: {
-                            SettingsRow(icon: "bell.fill", title: "Notifications")
-                        }
+                    // Legal Section
+                    SettingsSection(title: "Legal") {
+                        VStack(spacing: 0) {
+                            SettingsLinkRow(title: "Privacy policy") {
+                                if let url = URL(string: "https://azmy.ai/privacy") {
+                                    UIApplication.shared.open(url)
+                                }
+                            }
 
-                        NavigationLink {
-                            GoalsSettingsView()
-                        } label: {
-                            SettingsRow(icon: "target", title: "Daily Goals")
-                        }
+                            Divider()
+                                .background(AzmyColors.separator)
 
-                        Button {
-                            showAPIKeySheet = true
-                        } label: {
-                            SettingsRow(icon: "key.fill", title: "API Settings")
-                        }
-                    }
-                    .listRowBackground(AzmyColors.backgroundCard)
-
-                    // About
-                    Section("About") {
-                        Link(destination: URL(string: "https://azmy.ai/privacy")!) {
-                            SettingsRow(icon: "hand.raised.fill", title: "Privacy Policy")
-                        }
-
-                        Link(destination: URL(string: "https://azmy.ai/terms")!) {
-                            SettingsRow(icon: "doc.text.fill", title: "Terms of Service")
-                        }
-
-                        HStack {
-                            SettingsRow(icon: "info.circle.fill", title: "Version")
-                            Spacer()
-                            Text("1.0.0")
-                                .foregroundColor(AzmyColors.textSecondary)
-                        }
-                    }
-                    .listRowBackground(AzmyColors.backgroundCard)
-
-                    // Danger Zone
-                    Section {
-                        Button(role: .destructive) {
-                            showResetAlert = true
-                        } label: {
-                            HStack {
-                                Image(systemName: "trash")
-                                Text("Reset App Data")
+                            SettingsLinkRow(title: "Terms of Uses") {
+                                if let url = URL(string: "https://azmy.ai/terms") {
+                                    UIApplication.shared.open(url)
+                                }
                             }
                         }
                     }
-                    .listRowBackground(AzmyColors.backgroundCard)
+
+                    // Contact Section
+                    SettingsSection(title: "Contact us") {
+                        SettingsLinkRow(title: "Email us at support@azmy.ai") {
+                            if let url = URL(string: "mailto:support@azmy.ai") {
+                                UIApplication.shared.open(url)
+                            }
+                        }
+                    }
+
+                    // Logout Button
+                    Button(action: { showLogoutAlert = true }) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "rectangle.portrait.and.arrow.right")
+                                .font(.system(size: 16))
+                            Text("Logout")
+                                .font(.system(size: 16, weight: .medium))
+                        }
+                        .foregroundColor(AzmyColors.accentBlue)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 12)
+                        .background(AzmyColors.backgroundCard)
+                        .cornerRadius(20)
+                    }
+                    .padding(.top, 16)
+
+                    Spacer(minLength: 100)
                 }
-                .scrollContentBackground(.hidden)
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
             }
-            .navigationTitle("Profile")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(AzmyColors.backgroundPrimary, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
-            .sheet(isPresented: $showAPIKeySheet) {
-                APIKeySheet()
+        }
+        .alert("Logout", isPresented: $showLogoutAlert) {
+            Button("Cancel", role: .cancel) { }
+            Button("Logout", role: .destructive) {
+                userProfile.resetProfile()
+                appState.isOnboardingComplete = false
             }
-            .alert("Reset App Data", isPresented: $showResetAlert) {
-                Button("Cancel", role: .cancel) { }
-                Button("Reset", role: .destructive) {
-                    userProfile.resetProfile()
-                    appState.isOnboardingComplete = false
-                }
-            } message: {
-                Text("This will delete all your data and preferences. This action cannot be undone.")
-            }
+        } message: {
+            Text("Are you sure you want to logout?")
+        }
+        .onAppear {
+            calendarAccess = userProfile.calendarService.isAuthorized
+            notificationsEnabled = userProfile.profile.notificationsEnabled
         }
     }
 }
 
-// MARK: - Profile Header
-struct ProfileHeader: View {
-    let profile: UserProfile
+// MARK: - Settings Section
+struct SettingsSection<Content: View>: View {
+    let title: String
+    @ViewBuilder let content: Content
 
     var body: some View {
-        VStack(spacing: AzmySpacing.sm) {
-            // Avatar
-            ZStack {
-                Circle()
-                    .fill(AzmyColors.gradientBlue)
-                    .frame(width: 80, height: 80)
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(AzmyColors.textTertiary)
+                .padding(.horizontal, 4)
 
-                Text(profile.name.prefix(1).uppercased())
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
-                    .foregroundColor(.white)
+            VStack(spacing: 0) {
+                content
             }
+            .background(AzmyColors.backgroundCard)
+            .cornerRadius(12)
+        }
+    }
+}
 
-            Text(profile.name.isEmpty ? "User" : profile.name)
-                .font(AzmyFonts.headline2())
+// MARK: - Email Row
+struct EmailRow: View {
+    let email: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "envelope")
+                .font(.system(size: 18))
+                .foregroundColor(AzmyColors.textSecondary)
+
+            Text(email)
+                .font(.system(size: 16))
                 .foregroundColor(AzmyColors.textPrimary)
 
-            Text("Member since \(profile.createdAt.formatted(.dateTime.month().year()))")
-                .font(AzmyFonts.caption())
-                .foregroundColor(AzmyColors.textSecondary)
+            Spacer()
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, AzmySpacing.md)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
     }
 }
 
-// MARK: - Profile Row
-struct ProfileRow: View {
-    let icon: String
-    let title: String
-    let value: String
+// MARK: - Permission Main Row
+struct PermissionMainRow: View {
+    @Binding var isExpanded: Bool
+    @Binding var isEnabled: Bool
 
     var body: some View {
-        HStack {
-            Image(systemName: icon)
-                .foregroundStyle(AzmyColors.gradientBlue)
-                .frame(width: 24)
+        HStack(spacing: 12) {
+            Button(action: { isExpanded.toggle() }) {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(AzmyColors.textSecondary)
+                    .rotationEffect(.degrees(isExpanded ? 90 : 0))
+            }
 
-            Text(title)
+            Text("Allow app access")
+                .font(.system(size: 16))
                 .foregroundColor(AzmyColors.textPrimary)
 
             Spacer()
 
-            Text(value)
-                .foregroundColor(AzmyColors.textSecondary)
+            Toggle("", isOn: $isEnabled)
+                .labelsHidden()
+                .tint(AzmyColors.accentBlue)
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
     }
 }
 
-// MARK: - Connection Row
-struct ConnectionRow: View {
-    let icon: String
+// MARK: - Permission Sub Row
+struct PermissionSubRow: View {
     let title: String
-    let isConnected: Bool
+    @Binding var isEnabled: Bool
+
+    var body: some View {
+        HStack {
+            Text(title)
+                .font(.system(size: 16))
+                .foregroundColor(AzmyColors.textPrimary)
+
+            Spacer()
+
+            Toggle("", isOn: $isEnabled)
+                .labelsHidden()
+                .tint(AzmyColors.accentBlue)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+    }
+}
+
+// MARK: - Settings Toggle Row
+struct SettingsToggleRow: View {
+    let title: String
+    @Binding var isEnabled: Bool
+
+    var body: some View {
+        HStack {
+            Text(title)
+                .font(.system(size: 16))
+                .foregroundColor(AzmyColors.textPrimary)
+
+            Spacer()
+
+            Toggle("", isOn: $isEnabled)
+                .labelsHidden()
+                .tint(AzmyColors.accentBlue)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+    }
+}
+
+// MARK: - Settings Link Row
+struct SettingsLinkRow: View {
+    let title: String
     let action: () -> Void
 
     var body: some View {
-        HStack {
-            Image(systemName: icon)
-                .foregroundStyle(AzmyColors.gradientBlue)
-                .frame(width: 24)
-
-            Text(title)
-                .foregroundColor(AzmyColors.textPrimary)
-
-            Spacer()
-
-            Button(action: action) {
-                Text(isConnected ? "Connected" : "Connect")
-                    .font(AzmyFonts.bodySmall())
-                    .fontWeight(.medium)
-                    .foregroundColor(isConnected ? .green : AzmyColors.accentBlue)
-                    .padding(.horizontal, AzmySpacing.sm)
-                    .padding(.vertical, AzmySpacing.xs)
-                    .background(
-                        isConnected
-                            ? Color.green.opacity(0.1)
-                            : AzmyColors.accentBlue.opacity(0.1)
-                    )
-                    .cornerRadius(AzmyRadius.small)
-            }
-            .buttonStyle(.plain)
-        }
-    }
-}
-
-// MARK: - Settings Row
-struct SettingsRow: View {
-    let icon: String
-    let title: String
-
-    var body: some View {
-        HStack {
-            Image(systemName: icon)
-                .foregroundStyle(AzmyColors.gradientBlue)
-                .frame(width: 24)
-
-            Text(title)
-                .foregroundColor(AzmyColors.textPrimary)
-        }
-    }
-}
-
-// MARK: - Goals Edit View
-struct GoalsEditView: View {
-    @EnvironmentObject var userProfile: UserProfileViewModel
-    @State private var selectedGoals: Set<LifeGoal> = []
-
-    var body: some View {
-        ZStack {
-            AzmyColors.backgroundPrimary
-                .ignoresSafeArea()
-
-            List {
-                ForEach(LifeGoal.allCases, id: \.self) { goal in
-                    Button {
-                        if selectedGoals.contains(goal) {
-                            selectedGoals.remove(goal)
-                        } else {
-                            selectedGoals.insert(goal)
-                        }
-                    } label: {
-                        HStack {
-                            Text(goal.rawValue)
-                                .foregroundColor(AzmyColors.textPrimary)
-
-                            Spacer()
-
-                            if selectedGoals.contains(goal) {
-                                Image(systemName: "checkmark")
-                                    .foregroundStyle(AzmyColors.gradientBlue)
-                            }
-                        }
-                    }
-                    .buttonStyle(.plain)
-                }
-                .listRowBackground(AzmyColors.backgroundCard)
-            }
-            .scrollContentBackground(.hidden)
-        }
-        .navigationTitle("Goals")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(AzmyColors.backgroundPrimary, for: .navigationBar)
-        .toolbarBackground(.visible, for: .navigationBar)
-        .toolbarColorScheme(.dark, for: .navigationBar)
-        .onAppear {
-            selectedGoals = Set(userProfile.profile.lifestylePreferences?.primaryGoals ?? [])
-        }
-        .onDisappear {
-            var prefs = userProfile.profile.lifestylePreferences ?? LifestylePreferences()
-            prefs.primaryGoals = Array(selectedGoals)
-            userProfile.profile.lifestylePreferences = prefs
-        }
-    }
-}
-
-// MARK: - Notification Settings
-struct NotificationSettingsView: View {
-    @EnvironmentObject var userProfile: UserProfileViewModel
-
-    var body: some View {
-        ZStack {
-            AzmyColors.backgroundPrimary
-                .ignoresSafeArea()
-
-            Form {
-                Section {
-                    Toggle("Enable Notifications", isOn: Binding(
-                        get: { userProfile.profile.notificationsEnabled },
-                        set: { userProfile.toggleNotifications($0) }
-                    ))
-                }
-                .listRowBackground(AzmyColors.backgroundCard)
-
-                Section("Reminders") {
-                    DatePicker(
-                        "Morning Check-in",
-                        selection: Binding(
-                            get: { userProfile.profile.morningReminderTime },
-                            set: { userProfile.profile.morningReminderTime = $0 }
-                        ),
-                        displayedComponents: .hourAndMinute
-                    )
-
-                    DatePicker(
-                        "Evening Reflection",
-                        selection: Binding(
-                            get: { userProfile.profile.eveningReminderTime },
-                            set: { userProfile.profile.eveningReminderTime = $0 }
-                        ),
-                        displayedComponents: .hourAndMinute
-                    )
-                }
-                .listRowBackground(AzmyColors.backgroundCard)
-            }
-            .scrollContentBackground(.hidden)
-        }
-        .navigationTitle("Notifications")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(AzmyColors.backgroundPrimary, for: .navigationBar)
-        .toolbarBackground(.visible, for: .navigationBar)
-        .toolbarColorScheme(.dark, for: .navigationBar)
-    }
-}
-
-// MARK: - Goals Settings
-struct GoalsSettingsView: View {
-    @EnvironmentObject var userProfile: UserProfileViewModel
-
-    var body: some View {
-        ZStack {
-            AzmyColors.backgroundPrimary
-                .ignoresSafeArea()
-
-            Form {
-                Section("Sleep") {
-                    HStack {
-                        Text("Daily Goal")
-                            .foregroundColor(AzmyColors.textPrimary)
-                        Spacer()
-                        Text("\(Int(userProfile.profile.sleepGoal)) hours")
-                            .foregroundColor(AzmyColors.textSecondary)
-                    }
-
-                    Slider(
-                        value: Binding(
-                            get: { userProfile.profile.sleepGoal },
-                            set: { userProfile.updateSleepGoal($0) }
-                        ),
-                        in: 5...12,
-                        step: 0.5
-                    )
-                    .tint(AzmyColors.accentBlue)
-                }
-                .listRowBackground(AzmyColors.backgroundCard)
-
-                Section("Activity") {
-                    HStack {
-                        Text("Daily Steps Goal")
-                            .foregroundColor(AzmyColors.textPrimary)
-                        Spacer()
-                        Text("\(userProfile.profile.dailyStepsGoal)")
-                            .foregroundColor(AzmyColors.textSecondary)
-                    }
-
-                    Stepper(
-                        "",
-                        value: Binding(
-                            get: { userProfile.profile.dailyStepsGoal },
-                            set: { userProfile.updateStepsGoal($0) }
-                        ),
-                        in: 1000...30000,
-                        step: 1000
-                    )
-                }
-                .listRowBackground(AzmyColors.backgroundCard)
-            }
-            .scrollContentBackground(.hidden)
-        }
-        .navigationTitle("Daily Goals")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(AzmyColors.backgroundPrimary, for: .navigationBar)
-        .toolbarBackground(.visible, for: .navigationBar)
-        .toolbarColorScheme(.dark, for: .navigationBar)
-    }
-}
-
-// MARK: - API Key Sheet
-struct APIKeySheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @State private var apiKey = ""
-
-    var body: some View {
-        NavigationStack {
-            ZStack {
-                AzmyColors.backgroundPrimary
-                    .ignoresSafeArea()
-
-                Form {
-                    Section {
-                        SecureField("OpenAI API Key", text: $apiKey)
-                    } footer: {
-                        Text("Your API key is stored securely on your device and is never sent to our servers.")
-                            .foregroundColor(AzmyColors.textSecondary)
-                    }
-                    .listRowBackground(AzmyColors.backgroundCard)
-
-                    Section {
-                        Link("Get an API key", destination: URL(string: "https://platform.openai.com/api-keys")!)
-                            .foregroundColor(AzmyColors.accentBlue)
-                    }
-                    .listRowBackground(AzmyColors.backgroundCard)
-                }
-                .scrollContentBackground(.hidden)
-            }
-            .navigationTitle("API Settings")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(AzmyColors.backgroundPrimary, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                        .foregroundColor(AzmyColors.accentBlue)
-                }
-
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        UserDefaults.standard.set(apiKey, forKey: "openai_api_key")
-                        dismiss()
-                    }
+        Button(action: action) {
+            HStack {
+                Text(title)
+                    .font(.system(size: 16))
                     .foregroundColor(AzmyColors.accentBlue)
-                }
+
+                Spacer()
             }
-            .onAppear {
-                apiKey = UserDefaults.standard.string(forKey: "openai_api_key") ?? ""
-            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
         }
-        .presentationDetents([.medium])
     }
 }
 

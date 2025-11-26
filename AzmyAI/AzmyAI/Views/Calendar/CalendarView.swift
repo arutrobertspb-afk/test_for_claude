@@ -309,9 +309,9 @@ struct MonthGridView: View {
                 // Divider after each week (except last)
                 if weekIndex < weeks.count - 1 {
                     Rectangle()
-                        .fill(AzmyColors.separator.opacity(0.3))
+                        .fill(Color.white.opacity(0.15))
                         .frame(height: 1)
-                        .padding(.horizontal, 8)
+                        .padding(.horizontal, 0)
                 }
             }
         }
