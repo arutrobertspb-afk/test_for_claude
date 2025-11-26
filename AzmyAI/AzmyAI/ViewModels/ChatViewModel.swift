@@ -9,7 +9,6 @@ import Combine
 class ChatViewModel: ObservableObject {
     @Published var messages: [ChatMessage] = []
     @Published var inputText: String = ""
-    @Published var isTyping: Bool = false
     @Published var isThinking: Bool = false
     @Published var currentRetryAttempt: Int = 0
     @Published var maxRetryAttempts: Int = 3
@@ -136,21 +135,16 @@ class ChatViewModel: ObservableObject {
         messages.append(userMessage)
         inputText = ""
 
-        // Show typing indicator
-        isTyping = true
-
         // Update user name in memory if detected
         if !profile.name.isEmpty {
             memory.updateUserName(profile.name)
         }
 
-        // Send to AI using new service
+        // Send to AI using new service (isThinking is controlled by aiService.isProcessing)
         Task {
             let response = await aiService.sendMessage(text)
 
             await MainActor.run {
-                self.isTyping = false
-
                 // Determine suggestions based on response content
                 var suggestions: [SuggestedAction] = []
                 let lowerResponse = response.lowercased()

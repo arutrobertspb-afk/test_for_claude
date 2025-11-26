@@ -58,8 +58,8 @@ struct ChatView: View {
                         .id(message.id)
                     }
 
-                    // Show thinking indicator with retry info
-                    if chatViewModel.isThinking || chatViewModel.isTyping {
+                    // Show thinking indicator with retry info (always visible while AI is processing)
+                    if chatViewModel.isThinking {
                         ThinkingIndicator(
                             retryAttempt: chatViewModel.currentRetryAttempt,
                             maxRetries: chatViewModel.maxRetryAttempts
@@ -98,7 +98,7 @@ struct ChatView: View {
     private var inputBarSection: some View {
         ChatInputBar(
             text: $chatViewModel.inputText,
-            isTyping: chatViewModel.isTyping,
+            isProcessing: chatViewModel.isThinking,
             isFocused: $isInputFocused,
             onSend: sendMessage
         )
@@ -486,60 +486,52 @@ struct QuickPromptChip: View {
 // MARK: - Chat Input Bar
 struct ChatInputBar: View {
     @Binding var text: String
-    let isTyping: Bool
+    let isProcessing: Bool
     var isFocused: FocusState<Bool>.Binding
     let onSend: () -> Void
 
-    // Can always type, but can only send when not processing and text is not empty
-    private var canSend: Bool {
-        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isTyping
+    // Can send if text is not empty (processing doesn't block sending - user can queue messages)
+    private var hasText: Bool {
+        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var body: some View {
-        HStack(spacing: 12) {
-            textField
-            sendButton
+        HStack(alignment: .bottom, spacing: 12) {
+            // Attachment button
+            Button(action: {}) {
+                Image(systemName: "paperclip")
+                    .font(.system(size: 20))
+                    .foregroundColor(AzmyColors.textSecondary)
+            }
+            .frame(width: 32, height: 44)
+
+            // Text field - ALWAYS interactive
+            TextField("Type your message", text: $text, axis: .vertical)
+                .textFieldStyle(.plain)
+                .font(AzmyFonts.body())
+                .foregroundColor(AzmyColors.textPrimary)
+                .lineLimit(1...5)
+                .focused(isFocused)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(AzmyColors.backgroundSecondary)
+                .cornerRadius(AzmyRadius.large)
+                .overlay(
+                    RoundedRectangle(cornerRadius: AzmyRadius.large)
+                        .stroke(AzmyColors.separator, lineWidth: 1)
+                )
+
+            // Send button
+            Button(action: onSend) {
+                Image(systemName: "arrow.up.circle.fill")
+                    .font(.system(size: 32))
+                    .foregroundColor(hasText ? AzmyColors.accentBlue : AzmyColors.textTertiary)
+            }
+            .disabled(!hasText)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .background(AzmyColors.backgroundPrimary)
-    }
-
-    private var textField: some View {
-        TextField("Type your message", text: $text, axis: .vertical)
-            .textFieldStyle(.plain)
-            .font(AzmyFonts.body())
-            .foregroundColor(AzmyColors.textPrimary)
-            .lineLimit(1...5)
-            .focused(isFocused)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background(AzmyColors.backgroundSecondary)
-            .cornerRadius(AzmyRadius.large)
-            .overlay(
-                RoundedRectangle(cornerRadius: AzmyRadius.large)
-                    .stroke(AzmyColors.separator, lineWidth: 1)
-            )
-            // TextField is never disabled - user can always type
-    }
-
-    private var sendButton: some View {
-        Button(action: onSend) {
-            ZStack {
-                // Show loading indicator when processing
-                if isTyping {
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: AzmyColors.accentBlue))
-                        .scaleEffect(0.8)
-                } else {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 32))
-                        .foregroundColor(canSend ? AzmyColors.accentBlue : AzmyColors.textTertiary)
-                }
-            }
-            .frame(width: 32, height: 32)
-        }
-        .disabled(!canSend)
     }
 }
 
