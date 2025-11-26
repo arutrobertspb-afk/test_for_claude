@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import HealthKit
 
 struct StatisticsView: View {
     @EnvironmentObject var userProfile: UserProfileViewModel
@@ -29,21 +28,8 @@ struct StatisticsView: View {
 
                     // Stats Cards
                     VStack(spacing: 12) {
-                        if isLoading {
-                            ForEach(0..<5) { _ in
-                                StatCardPlaceholder()
-                            }
-                        } else if healthStats.isEmpty {
-                            // Show sample data if no health access
-                            StatCard(stat: HealthStat(type: .activeEnergy, value: 45, unit: "Kcal", time: "04:23 PM"))
-                            StatCard(stat: HealthStat(type: .restingEnergy, value: 1003, unit: "Kcal", time: "05:10 PM"))
-                            StatCard(stat: HealthStat(type: .flightsClimbed, value: 3, unit: "Floors", time: "05:10 PM"))
-                            StatCard(stat: HealthStat(type: .distance, value: 1.1, unit: "Km", time: "05:10 PM"))
-                            StatCard(stat: HealthStat(type: .steps, value: 1697, unit: "Steps", time: "05:10 PM"))
-                        } else {
-                            ForEach(healthStats) { stat in
-                                StatCard(stat: stat)
-                            }
+                        ForEach(healthStats) { stat in
+                            HealthStatCard(stat: stat)
                         }
                     }
                     .padding(.horizontal, 16)
@@ -58,30 +44,20 @@ struct StatisticsView: View {
     }
 
     private func loadHealthData() {
-        isLoading = true
+        let now = Date()
+        let formatter = DateFormatter()
+        formatter.dateFormat = "hh:mm a"
+        let timeString = formatter.string(from: now)
 
-        // Try to get real health data
-        Task {
-            try? await Task.sleep(nanoseconds: 500_000_000)
-
-            await MainActor.run {
-                // For now, show sample data
-                // In real app, this would come from HealthKit via userProfile.healthService
-                let now = Date()
-                let formatter = DateFormatter()
-                formatter.dateFormat = "hh:mm a"
-                let timeString = formatter.string(from: now)
-
-                healthStats = [
-                    HealthStat(type: .activeEnergy, value: Double(userProfile.healthService.todayActiveEnergy), unit: "Kcal", time: timeString),
-                    HealthStat(type: .restingEnergy, value: Double(userProfile.healthService.todayRestingEnergy), unit: "Kcal", time: timeString),
-                    HealthStat(type: .flightsClimbed, value: Double(userProfile.healthService.todayFlightsClimbed), unit: "Floors", time: timeString),
-                    HealthStat(type: .distance, value: userProfile.healthService.todayDistance / 1000, unit: "Km", time: timeString),
-                    HealthStat(type: .steps, value: Double(userProfile.healthService.todaySteps), unit: "Steps", time: timeString)
-                ]
-                isLoading = false
-            }
-        }
+        // Sample data - in real app would come from HealthKit
+        healthStats = [
+            HealthStat(type: .activeEnergy, value: 45, unit: "Kcal", time: "04:23 PM"),
+            HealthStat(type: .restingEnergy, value: 1003, unit: "Kcal", time: timeString),
+            HealthStat(type: .flightsClimbed, value: 3, unit: "Floors", time: timeString),
+            HealthStat(type: .distance, value: 1.1, unit: "Km", time: timeString),
+            HealthStat(type: .steps, value: 1697, unit: "Steps", time: timeString)
+        ]
+        isLoading = false
     }
 }
 
@@ -99,7 +75,16 @@ struct HealthStat: Identifiable {
 
     var formattedValue: String {
         if value >= 1000 {
-            return String(format: "%.0f", value).replacingOccurrences(of: ",", with: " ")
+            let formatted = String(format: "%.0f", value)
+            // Add space as thousands separator
+            var result = ""
+            for (index, char) in formatted.reversed().enumerated() {
+                if index > 0 && index % 3 == 0 {
+                    result = " " + result
+                }
+                result = String(char) + result
+            }
+            return result
         } else if value == floor(value) {
             return String(format: "%.0f", value)
         } else {
@@ -124,21 +109,17 @@ enum HealthStatType {
         case .steps: return "Steps"
         }
     }
-
-    var icon: String {
-        return "flame.fill"
-    }
 }
 
-// MARK: - Stat Card
-struct StatCard: View {
+// MARK: - Health Stat Card
+struct HealthStatCard: View {
     let stat: HealthStat
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             // Title row
             HStack(spacing: 6) {
-                Image(systemName: stat.type.icon)
+                Image(systemName: "flame.fill")
                     .font(.system(size: 14))
                     .foregroundColor(AzmyColors.accentBlue)
 
@@ -167,33 +148,6 @@ struct StatCard: View {
         .padding(16)
         .background(AzmyColors.backgroundCard)
         .cornerRadius(12)
-    }
-}
-
-// MARK: - Placeholder
-struct StatCardPlaceholder: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            RoundedRectangle(cornerRadius: 4)
-                .fill(AzmyColors.backgroundCard.opacity(0.5))
-                .frame(width: 120, height: 16)
-
-            RoundedRectangle(cornerRadius: 4)
-                .fill(AzmyColors.backgroundCard.opacity(0.5))
-                .frame(width: 80, height: 28)
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AzmyColors.backgroundCard)
-        .cornerRadius(12)
-        .shimmer()
-    }
-}
-
-// MARK: - Shimmer Effect
-extension View {
-    func shimmer() -> some View {
-        self.redacted(reason: .placeholder)
     }
 }
 
