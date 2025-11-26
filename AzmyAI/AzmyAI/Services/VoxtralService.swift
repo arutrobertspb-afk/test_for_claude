@@ -24,21 +24,33 @@ struct VoxtralMessage: Codable {
 struct VoxtralContent: Codable {
     let type: String
     let text: String?
-    let data: String?       // Base64 encoded audio
-    let mimeType: String?   // e.g., "audio/wav"
+    let audioUrl: AudioUrl?
+
+    struct AudioUrl: Codable {
+        let url: String
+    }
 
     enum CodingKeys: String, CodingKey {
         case type
         case text
-        case data
-        case mimeType = "mime_type"
+        case audioUrl = "audio_url"
     }
 
-    init(type: String, text: String? = nil, data: String? = nil, mimeType: String? = nil) {
+    init(type: String, text: String? = nil, audioUrl: AudioUrl? = nil) {
         self.type = type
         self.text = text
-        self.data = data
-        self.mimeType = mimeType
+        self.audioUrl = audioUrl
+    }
+
+    // Convenience init for audio content
+    static func audio(base64Data: String, mimeType: String = "audio/wav") -> VoxtralContent {
+        let dataUri = "data:\(mimeType);base64,\(base64Data)"
+        return VoxtralContent(type: "audio_url", audioUrl: AudioUrl(url: dataUri))
+    }
+
+    // Convenience init for text content
+    static func text(_ text: String) -> VoxtralContent {
+        return VoxtralContent(type: "text", text: text)
     }
 }
 
@@ -86,7 +98,7 @@ class VoxtralService: ObservableObject {
     // Mistral Voxtral model for audio transcription
     private let apiKey: String
     private let apiURL = "https://api.mistral.ai/v1/chat/completions"
-    private let model = "mistral-large-latest" // Voxtral-capable model
+    private let model = "voxtral-mini-latest" // Voxtral model for audio transcription
 
     @Published var state: VoiceProcessingState = .idle
     @Published var rawTranscription: String = ""
@@ -106,17 +118,10 @@ class VoxtralService: ObservableObject {
         // Convert audio to base64
         let base64Audio = audioData.base64EncodedString()
 
-        // Build the request with audio content
+        // Build the request with audio content using Mistral's audio_url format
         let content: [VoxtralContent] = [
-            VoxtralContent(
-                type: "audio",
-                data: base64Audio,
-                mimeType: "audio/wav"
-            ),
-            VoxtralContent(
-                type: "text",
-                text: "Transcribe this audio accurately. Output ONLY the transcription, nothing else. Preserve all words exactly as spoken, including filler words, pauses (as '...'), and any unclear parts (mark as [unclear]). Do not add punctuation or formatting."
-            )
+            .audio(base64Data: base64Audio, mimeType: "audio/wav"),
+            .text("Transcribe this audio accurately. Output ONLY the transcription, nothing else. Preserve all words exactly as spoken, including filler words, pauses (as '...'), and any unclear parts (mark as [unclear]). Do not add punctuation or formatting.")
         ]
 
         let message = VoxtralMessage(role: "user", content: content)
