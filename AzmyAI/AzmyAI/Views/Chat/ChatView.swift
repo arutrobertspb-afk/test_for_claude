@@ -483,7 +483,7 @@ struct QuickPromptChip: View {
     }
 }
 
-// MARK: - Chat Input Bar (Telegram-style voice)
+// MARK: - Chat Input Bar (Telegram-style voice with beautiful animations)
 struct ChatInputBar: View {
     @Binding var text: String
     let isProcessing: Bool
@@ -500,14 +500,31 @@ struct ChatInputBar: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Recording overlay (shows when recording)
+            // Recording overlay with beautiful animations
             if audioService.isRecording {
-                recordingOverlay
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                VoiceRecordingOverlay(
+                    audioService: audioService,
+                    voicePipeline: voicePipeline
+                )
+                .transition(.asymmetric(
+                    insertion: .move(edge: .bottom).combined(with: .opacity).combined(with: .scale(scale: 0.9)),
+                    removal: .opacity.combined(with: .scale(scale: 0.95))
+                ))
+                .padding(.bottom, 8)
+            }
+
+            // Processing overlay
+            if voicePipeline.isProcessing && !audioService.isRecording {
+                VoiceProcessingView(processingStep: voicePipeline.processingStep)
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .bottom).combined(with: .opacity),
+                        removal: .opacity
+                    ))
+                    .padding(.bottom, 8)
             }
 
             HStack(alignment: .bottom, spacing: 12) {
-                // Text field
+                // Text field with smooth border animation
                 TextField("Message", text: $text, axis: .vertical)
                     .textFieldStyle(.plain)
                     .font(AzmyFonts.body())
@@ -520,69 +537,59 @@ struct ChatInputBar: View {
                     .cornerRadius(AzmyRadius.large)
                     .overlay(
                         RoundedRectangle(cornerRadius: AzmyRadius.large)
-                            .stroke(audioService.isRecording ? AzmyColors.accentBlue : AzmyColors.separator, lineWidth: 1)
+                            .stroke(
+                                audioService.isRecording ? AzmyColors.accentBlue :
+                                    (isFocused.wrappedValue ? AzmyColors.accentBlue.opacity(0.5) : AzmyColors.separator),
+                                lineWidth: audioService.isRecording ? 2 : 1
+                            )
+                            .animation(.easeInOut(duration: 0.2), value: audioService.isRecording)
                     )
 
-                // Send OR Voice button
-                if hasText {
-                    Button(action: onSend) {
-                        Image(systemName: "arrow.up.circle.fill")
-                            .font(.system(size: 32))
-                            .foregroundColor(AzmyColors.accentBlue)
-                    }
-                } else {
-                    // Telegram-style voice button
-                    TelegramVoiceButton(
-                        audioService: audioService,
-                        voicePipeline: voicePipeline
-                    ) { transcribedText in
-                        self.text = transcribedText
+                // Send OR Voice button with morph animation
+                ZStack {
+                    if hasText {
+                        Button(action: onSend) {
+                            Image(systemName: "arrow.up.circle.fill")
+                                .font(.system(size: 32))
+                                .foregroundColor(AzmyColors.accentBlue)
+                        }
+                        .transition(.scale.combined(with: .opacity))
+                    } else {
+                        // Telegram-style voice button with onboarding
+                        TelegramVoiceButton(
+                            audioService: audioService,
+                            voicePipeline: voicePipeline
+                        ) { transcribedText in
+                            // Animate text appearing character by character
+                            animateTextInput(transcribedText)
+                        }
+                        .transition(.scale.combined(with: .opacity))
                     }
                 }
+                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: hasText)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
             .background(AzmyColors.backgroundPrimary)
         }
-        .animation(.spring(response: 0.3), value: audioService.isRecording)
-        .animation(.spring(response: 0.3), value: hasText)
+        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: audioService.isRecording)
+        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: voicePipeline.isProcessing)
     }
 
-    // Recording overlay with cancel hint
-    private var recordingOverlay: some View {
-        HStack(spacing: 12) {
-            HStack(spacing: 8) {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 12))
-                Text("Slide to cancel")
-                    .font(.system(size: 12))
-            }
-            .foregroundColor(AzmyColors.textTertiary)
+    // Animate text appearing with typing effect
+    private func animateTextInput(_ fullText: String) {
+        text = ""
+        var currentIndex = 0
+        let characters = Array(fullText)
 
-            Spacer()
-
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(Color.red)
-                    .frame(width: 8, height: 8)
-
-                Text(formatDuration(audioService.recordingDuration))
-                    .font(.system(size: 14, weight: .medium).monospacedDigit())
-                    .foregroundColor(.white)
+        Timer.scheduledTimer(withTimeInterval: 0.015, repeats: true) { timer in
+            if currentIndex < characters.count {
+                text += String(characters[currentIndex])
+                currentIndex += 1
+            } else {
+                timer.invalidate()
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(AzmyColors.backgroundCard)
-        .cornerRadius(AzmyRadius.medium)
-        .padding(.horizontal, 16)
-        .padding(.bottom, 4)
-    }
-
-    private func formatDuration(_ duration: TimeInterval) -> String {
-        let minutes = Int(duration) / 60
-        let seconds = Int(duration) % 60
-        return String(format: "%d:%02d", minutes, seconds)
     }
 }
 
