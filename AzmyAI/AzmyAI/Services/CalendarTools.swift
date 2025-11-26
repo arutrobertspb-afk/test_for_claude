@@ -10,7 +10,7 @@ import EventKit
 
 // MARK: - Tool Definitions for Mistral API
 struct MistralTool: Codable {
-    let type: String = "function"
+    var type: String = "function"
     let function: MistralFunction
 }
 
@@ -21,7 +21,7 @@ struct MistralFunction: Codable {
 }
 
 struct MistralParameters: Codable {
-    let type: String = "object"
+    var type: String = "object"
     let properties: [String: MistralProperty]
     let required: [String]
 }
@@ -721,7 +721,7 @@ class CalendarToolExecutor {
         }
 
         let period = args["period"] as? String ?? "this_week"
-        let focus = args["focus"] as? String ?? "all"
+        let _ = args["focus"] as? String ?? "all"  // Reserved for future use
 
         let calendar = Calendar.current
         let now = Date()

@@ -208,7 +208,7 @@ class AzmyAIService: ObservableObject {
         var messages = buildMessagesWithContext(userMessage: userMessage)
 
         // Retry logic with 3 attempts
-        var lastError: String = "I'm having trouble connecting right now. Please try again."
+        let errorMessage = "I'm having trouble connecting right now. Please try again."
 
         for attempt in 1...maxRetryAttempts {
             await MainActor.run { currentRetryAttempt = attempt }
@@ -273,7 +273,7 @@ class AzmyAIService: ObservableObject {
             }
         }
 
-        return lastError
+        return errorMessage
     }
 
     // MARK: - Build Messages with Context

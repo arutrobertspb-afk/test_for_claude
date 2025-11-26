@@ -561,9 +561,12 @@ struct HomeView: View {
                         .id(message.id)
                     }
 
-                    if chatViewModel.isTyping {
-                        TypingIndicator()
-                            .id("typing")
+                    if chatViewModel.isThinking {
+                        ThinkingIndicator(
+                            retryAttempt: chatViewModel.currentRetryAttempt,
+                            maxRetries: chatViewModel.maxRetryAttempts
+                        )
+                        .id("thinking")
                     }
                 }
                 .padding(.horizontal, 16)
