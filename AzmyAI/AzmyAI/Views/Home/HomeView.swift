@@ -422,58 +422,74 @@ struct HomeView: View {
     // MARK: - Chat Preview Section
     private var chatPreviewSection: some View {
         VStack(spacing: 12) {
-            // AI avatar and last message preview
-            HStack(alignment: .top, spacing: 12) {
-                // Avatar
-                Circle()
-                    .fill(AzmyColors.gradientBlue)
-                    .frame(width: 44, height: 44)
-                    .overlay(
-                        Image("avatar_placeholder")
-                            .resizable()
-                            .scaledToFill()
-                            .clipShape(Circle())
-                    )
-                    .overlay(
-                        Circle()
-                            .stroke(AzmyColors.backgroundPrimary, lineWidth: 2)
-                    )
-
-                VStack(alignment: .leading, spacing: 4) {
-                    // Timestamp
-                    HStack {
-                        Text(lastMessageTime)
-                            .font(.system(size: 12))
-                            .foregroundColor(AzmyColors.textTertiary)
-
-                        Image(systemName: "chevron.up")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(AzmyColors.textTertiary)
-                    }
-
-                    // Greeting
-                    Text("Good morning, \(userProfile.profile.name.components(separatedBy: " ").first ?? "there").")
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundColor(.white)
-
-                    // Message preview
-                    Text(lastAIMessagePreview)
-                        .font(.system(size: 14))
-                        .foregroundColor(AzmyColors.textSecondary)
-                        .lineLimit(2)
-                }
-
-                Spacer()
-            }
-            .padding(.horizontal, 16)
-            .onTapGesture {
-                swipeToChat()
-            }
-
-            // Message input bar
+            chatPreviewHeader
             dashboardChatInput
         }
         .padding(.vertical, 12)
+    }
+
+    private var chatPreviewHeader: some View {
+        HStack(alignment: .top, spacing: 12) {
+            chatPreviewAvatar
+            chatPreviewContent
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .onTapGesture {
+            swipeToChat()
+        }
+    }
+
+    private var chatPreviewAvatar: some View {
+        Circle()
+            .fill(AzmyColors.gradientBlue)
+            .frame(width: 44, height: 44)
+            .overlay(
+                Image(systemName: "person.fill")
+                    .foregroundColor(.white)
+            )
+            .overlay(
+                Circle()
+                    .stroke(AzmyColors.backgroundPrimary, lineWidth: 2)
+            )
+    }
+
+    private var chatPreviewContent: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            chatPreviewTimestamp
+            chatPreviewGreeting
+            chatPreviewMessage
+        }
+    }
+
+    private var chatPreviewTimestamp: some View {
+        HStack {
+            Text(lastMessageTime)
+                .font(.system(size: 12))
+                .foregroundColor(AzmyColors.textTertiary)
+
+            Image(systemName: "chevron.up")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundColor(AzmyColors.textTertiary)
+        }
+    }
+
+    private var chatPreviewGreeting: some View {
+        Text(greetingText)
+            .font(.system(size: 18, weight: .bold))
+            .foregroundColor(.white)
+    }
+
+    private var chatPreviewMessage: some View {
+        Text(lastAIMessagePreview)
+            .font(.system(size: 14))
+            .foregroundColor(AzmyColors.textSecondary)
+            .lineLimit(2)
+    }
+
+    private var greetingText: String {
+        let firstName = userProfile.profile.name.components(separatedBy: " ").first ?? "there"
+        return "Good morning, \(firstName)."
     }
 
     private var lastMessageTime: String {
@@ -487,7 +503,9 @@ struct HomeView: View {
 
     private var lastAIMessagePreview: String {
         if let lastMessage = chatViewModel.messages.last(where: { $0.role == .assistant }) {
-            return String(lastMessage.content.prefix(100)) + (lastMessage.content.count > 100 ? "..." : "")
+            let contentPrefix = String(lastMessage.content.prefix(100))
+            let suffix = lastMessage.content.count > 100 ? "..." : ""
+            return contentPrefix + suffix
         }
         return "I'd like to remind you that tomorrow, according to the forecast, there will be no waves. And you haven't been wakesurfing in a while - maybe it's ti..."
     }
@@ -815,132 +833,11 @@ struct EventDetailView: View {
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
-                        // Header with color bar
-                        HStack(spacing: 16) {
-                            Rectangle()
-                                .fill(event.color)
-                                .frame(width: 6)
-                                .cornerRadius(3)
-
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text(event.title)
-                                    .font(.system(size: 24, weight: .bold))
-                                    .foregroundColor(.white)
-
-                                // Category badge
-                                HStack(spacing: 6) {
-                                    Image(systemName: event.category.icon)
-                                        .font(.system(size: 12))
-                                    Text(event.category.rawValue)
-                                        .font(.system(size: 12, weight: .medium))
-                                }
-                                .foregroundColor(event.color)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(event.color.opacity(0.2))
-                                .cornerRadius(12)
-                            }
-                        }
-                        .frame(height: 80)
-
-                        // Time Section
-                        VStack(alignment: .leading, spacing: 12) {
-                            SectionHeader(title: "Time", icon: "clock")
-
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack {
-                                    Text("Start:")
-                                        .font(.system(size: 14))
-                                        .foregroundColor(AzmyColors.textSecondary)
-                                    Spacer()
-                                    Text(formattedDateTime(event.startDate))
-                                        .font(.system(size: 14, weight: .medium))
-                                        .foregroundColor(.white)
-                                }
-
-                                HStack {
-                                    Text("End:")
-                                        .font(.system(size: 14))
-                                        .foregroundColor(AzmyColors.textSecondary)
-                                    Spacer()
-                                    Text(formattedDateTime(event.endDate))
-                                        .font(.system(size: 14, weight: .medium))
-                                        .foregroundColor(.white)
-                                }
-
-                                HStack {
-                                    Text("Duration:")
-                                        .font(.system(size: 14))
-                                        .foregroundColor(AzmyColors.textSecondary)
-                                    Spacer()
-                                    Text(formattedDuration)
-                                        .font(.system(size: 14, weight: .medium))
-                                        .foregroundColor(.white)
-                                }
-                            }
-                            .padding(16)
-                            .background(AzmyColors.backgroundCard)
-                            .cornerRadius(12)
-                        }
-
-                        // Location Section
-                        if let location = event.location, !location.isEmpty {
-                            VStack(alignment: .leading, spacing: 12) {
-                                SectionHeader(title: "Location", icon: "mappin.circle")
-
-                                HStack {
-                                    Image(systemName: "mappin.and.ellipse")
-                                        .font(.system(size: 16))
-                                        .foregroundColor(AzmyColors.accentBlue)
-
-                                    Text(location)
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.white)
-
-                                    Spacer()
-
-                                    Button(action: {}) {
-                                        Image(systemName: "arrow.up.right.square")
-                                            .font(.system(size: 14))
-                                            .foregroundColor(AzmyColors.accentBlue)
-                                    }
-                                }
-                                .padding(16)
-                                .background(AzmyColors.backgroundCard)
-                                .cornerRadius(12)
-                            }
-                        }
-
-                        // Notes Section
-                        if let notes = event.notes, !notes.isEmpty {
-                            VStack(alignment: .leading, spacing: 12) {
-                                SectionHeader(title: "Notes", icon: "note.text")
-
-                                Text(notes)
-                                    .font(.system(size: 14))
-                                    .foregroundColor(AzmyColors.textSecondary)
-                                    .padding(16)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(AzmyColors.backgroundCard)
-                                    .cornerRadius(12)
-                            }
-                        }
-
-                        // AI Generated badge
-                        if event.isAIGenerated {
-                            HStack(spacing: 8) {
-                                Image(systemName: "sparkles")
-                                    .font(.system(size: 14))
-                                Text("Generated by Azmy AI")
-                                    .font(.system(size: 12))
-                            }
-                            .foregroundColor(AzmyColors.accentBlue)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(AzmyColors.accentBlue.opacity(0.15))
-                            .cornerRadius(20)
-                        }
-
+                        eventHeader
+                        timeSection
+                        locationSection
+                        notesSection
+                        aiGeneratedBadge
                         Spacer(minLength: 40)
                     }
                     .padding(20)
@@ -953,32 +850,168 @@ struct EventDetailView: View {
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("Close") {
-                        dismiss()
-                    }
-                    .foregroundColor(AzmyColors.accentBlue)
+                    closeButton
                 }
-
                 ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Button(action: {}) {
-                            Label("Edit", systemImage: "pencil")
-                        }
-                        Button(action: {}) {
-                            Label("Share", systemImage: "square.and.arrow.up")
-                        }
-                        Button(role: .destructive, action: {}) {
-                            Label("Delete", systemImage: "trash")
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                            .foregroundColor(AzmyColors.textSecondary)
-                    }
+                    menuButton
                 }
             }
         }
         .presentationDragIndicator(.visible)
         .presentationDetents([.large])
+    }
+
+    private var eventHeader: some View {
+        HStack(spacing: 16) {
+            Rectangle()
+                .fill(event.color)
+                .frame(width: 6)
+                .cornerRadius(3)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text(event.title)
+                    .font(.system(size: 24, weight: .bold))
+                    .foregroundColor(.white)
+
+                categoryBadge
+            }
+        }
+        .frame(height: 80)
+    }
+
+    private var categoryBadge: some View {
+        HStack(spacing: 6) {
+            Image(systemName: event.category.icon)
+                .font(.system(size: 12))
+            Text(event.category.rawValue)
+                .font(.system(size: 12, weight: .medium))
+        }
+        .foregroundColor(event.color)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(event.color.opacity(0.2))
+        .cornerRadius(12)
+    }
+
+    private var timeSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeader(title: "Time", icon: "clock")
+            timeContent
+        }
+    }
+
+    private var timeContent: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            timeRow(label: "Start:", value: formattedDateTime(event.startDate))
+            timeRow(label: "End:", value: formattedDateTime(event.endDate))
+            timeRow(label: "Duration:", value: formattedDuration)
+        }
+        .padding(16)
+        .background(AzmyColors.backgroundCard)
+        .cornerRadius(12)
+    }
+
+    private func timeRow(label: String, value: String) -> some View {
+        HStack {
+            Text(label)
+                .font(.system(size: 14))
+                .foregroundColor(AzmyColors.textSecondary)
+            Spacer()
+            Text(value)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(.white)
+        }
+    }
+
+    @ViewBuilder
+    private var locationSection: some View {
+        if let location = event.location, !location.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                SectionHeader(title: "Location", icon: "mappin.circle")
+                locationContent(location)
+            }
+        }
+    }
+
+    private func locationContent(_ location: String) -> some View {
+        HStack {
+            Image(systemName: "mappin.and.ellipse")
+                .font(.system(size: 16))
+                .foregroundColor(AzmyColors.accentBlue)
+
+            Text(location)
+                .font(.system(size: 14))
+                .foregroundColor(.white)
+
+            Spacer()
+
+            Button(action: {}) {
+                Image(systemName: "arrow.up.right.square")
+                    .font(.system(size: 14))
+                    .foregroundColor(AzmyColors.accentBlue)
+            }
+        }
+        .padding(16)
+        .background(AzmyColors.backgroundCard)
+        .cornerRadius(12)
+    }
+
+    @ViewBuilder
+    private var notesSection: some View {
+        if let notes = event.notes, !notes.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                SectionHeader(title: "Notes", icon: "note.text")
+
+                Text(notes)
+                    .font(.system(size: 14))
+                    .foregroundColor(AzmyColors.textSecondary)
+                    .padding(16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(AzmyColors.backgroundCard)
+                    .cornerRadius(12)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var aiGeneratedBadge: some View {
+        if event.isAIGenerated {
+            HStack(spacing: 8) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 14))
+                Text("Generated by Azmy AI")
+                    .font(.system(size: 12))
+            }
+            .foregroundColor(AzmyColors.accentBlue)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(AzmyColors.accentBlue.opacity(0.15))
+            .cornerRadius(20)
+        }
+    }
+
+    private var closeButton: some View {
+        Button("Close") {
+            dismiss()
+        }
+        .foregroundColor(AzmyColors.accentBlue)
+    }
+
+    private var menuButton: some View {
+        Menu {
+            Button(action: {}) {
+                Label("Edit", systemImage: "pencil")
+            }
+            Button(action: {}) {
+                Label("Share", systemImage: "square.and.arrow.up")
+            }
+            Button(role: .destructive, action: {}) {
+                Label("Delete", systemImage: "trash")
+            }
+        } label: {
+            Image(systemName: "ellipsis.circle")
+                .foregroundColor(AzmyColors.textSecondary)
+        }
     }
 
     private func formattedDateTime(_ date: Date) -> String {
@@ -1038,6 +1071,23 @@ struct TasksListView: View {
         return tasks
     }
 
+    private var completedCount: Int {
+        displayTasks.filter { $0.isCompleted }.count
+    }
+
+    private var totalCount: Int {
+        displayTasks.count
+    }
+
+    private var progressValue: CGFloat {
+        guard totalCount > 0 else { return 0 }
+        return CGFloat(completedCount) / CGFloat(totalCount)
+    }
+
+    private var progressPercent: Int {
+        Int(progressValue * 100)
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -1046,45 +1096,8 @@ struct TasksListView: View {
 
                 ScrollView {
                     VStack(spacing: 12) {
-                        // Progress header
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Today's Progress")
-                                    .font(.system(size: 18, weight: .bold))
-                                    .foregroundColor(.white)
-
-                                Text("\(displayTasks.filter { $0.isCompleted }.count) of \(displayTasks.count) completed")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(AzmyColors.textSecondary)
-                            }
-
-                            Spacer()
-
-                            // Progress circle
-                            ZStack {
-                                Circle()
-                                    .stroke(AzmyColors.separator, lineWidth: 6)
-                                    .frame(width: 50, height: 50)
-
-                                Circle()
-                                    .trim(from: 0, to: CGFloat(displayTasks.filter { $0.isCompleted }.count) / CGFloat(max(displayTasks.count, 1)))
-                                    .stroke(AzmyColors.accentBlue, style: StrokeStyle(lineWidth: 6, lineCap: .round))
-                                    .frame(width: 50, height: 50)
-                                    .rotationEffect(.degrees(-90))
-
-                                Text("\(Int(CGFloat(displayTasks.filter { $0.isCompleted }.count) / CGFloat(max(displayTasks.count, 1)) * 100))%")
-                                    .font(.system(size: 12, weight: .bold))
-                                    .foregroundColor(.white)
-                            }
-                        }
-                        .padding(16)
-                        .background(AzmyColors.backgroundCard)
-                        .cornerRadius(12)
-
-                        // Task list
-                        ForEach(displayTasks) { task in
-                            TaskRowView(task: task)
-                        }
+                        progressHeader
+                        tasksList
                     }
                     .padding(16)
                 }
@@ -1112,6 +1125,51 @@ struct TasksListView: View {
         }
         .presentationDragIndicator(.visible)
         .presentationDetents([.medium, .large])
+    }
+
+    private var progressHeader: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Today's Progress")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(.white)
+
+                Text("\(completedCount) of \(totalCount) completed")
+                    .font(.system(size: 14))
+                    .foregroundColor(AzmyColors.textSecondary)
+            }
+
+            Spacer()
+
+            progressCircle
+        }
+        .padding(16)
+        .background(AzmyColors.backgroundCard)
+        .cornerRadius(12)
+    }
+
+    private var progressCircle: some View {
+        ZStack {
+            Circle()
+                .stroke(AzmyColors.separator, lineWidth: 6)
+                .frame(width: 50, height: 50)
+
+            Circle()
+                .trim(from: 0, to: progressValue)
+                .stroke(AzmyColors.accentBlue, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                .frame(width: 50, height: 50)
+                .rotationEffect(.degrees(-90))
+
+            Text("\(progressPercent)%")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(.white)
+        }
+    }
+
+    private var tasksList: some View {
+        ForEach(displayTasks) { task in
+            TaskRowView(task: task)
+        }
     }
 }
 
