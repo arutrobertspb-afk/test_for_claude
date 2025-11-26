@@ -13,6 +13,9 @@ struct HomeView: View {
     @EnvironmentObject var userProfile: UserProfileViewModel
     @EnvironmentObject var plannerViewModel: PlannerViewModel
 
+    @StateObject private var locationService = LocationService.shared
+    @StateObject private var weatherService = WeatherService.shared
+
     @State private var currentPage: Int = 0  // 0 = dashboard, 1 = chat
     @State private var currentCardPage = 0
     @State private var dragOffset: CGFloat = 0
@@ -85,6 +88,10 @@ struct HomeView: View {
         .onAppear {
             Task {
                 await plannerViewModel.fetchEventsForMonth(Date())
+            }
+            // Fetch location and weather
+            Task {
+                _ = await weatherService.fetchWeatherForCurrentLocation()
             }
         }
         .sheet(isPresented: $showEventDetail) {
@@ -214,25 +221,42 @@ struct HomeView: View {
     // MARK: - Top Bar
     private var topBar: some View {
         HStack {
-            // Location
-            HStack(spacing: 4) {
-                Image(systemName: "location.fill")
-                    .font(.system(size: 12))
-                Text("Limassol, Cyprus")
-                    .font(.system(size: 14))
+            // Location (with tap to refresh)
+            Button(action: {
+                Task {
+                    _ = await weatherService.fetchWeatherForCurrentLocation()
+                }
+            }) {
+                HStack(spacing: 4) {
+                    if locationService.isLoading {
+                        ProgressView()
+                            .scaleEffect(0.6)
+                    } else {
+                        Image(systemName: "location.fill")
+                            .font(.system(size: 12))
+                    }
+                    Text(currentLocationName)
+                        .font(.system(size: 14))
+                }
+                .foregroundColor(AzmyColors.textSecondary)
             }
-            .foregroundColor(AzmyColors.textSecondary)
+            .buttonStyle(.plain)
 
             Spacer()
 
-            // Weather
+            // Weather (real data)
             HStack(spacing: 4) {
-                Circle()
-                    .fill(.yellow)
-                    .frame(width: 12, height: 12)
-                Text("+21°C")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.white)
+                if weatherService.isLoading {
+                    ProgressView()
+                        .scaleEffect(0.6)
+                } else {
+                    Image(systemName: currentWeatherIcon)
+                        .font(.system(size: 14))
+                        .foregroundColor(currentWeatherColor)
+                    Text(currentTemperature)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.white)
+                }
             }
 
             // Avatar
@@ -246,6 +270,36 @@ struct HomeView: View {
                 )
                 .padding(.leading, 12)
         }
+    }
+
+    // MARK: - Location & Weather Computed Properties
+
+    private var currentLocationName: String {
+        if let location = locationService.currentLocation {
+            return location.displayName
+        }
+        return "Tap to get location"
+    }
+
+    private var currentTemperature: String {
+        if let weather = weatherService.currentWeather {
+            return weather.temperatureString
+        }
+        return "--°C"
+    }
+
+    private var currentWeatherIcon: String {
+        if let weather = weatherService.currentWeather {
+            return weather.icon
+        }
+        return "cloud.fill"
+    }
+
+    private var currentWeatherColor: Color {
+        if let weather = weatherService.currentWeather {
+            return weather.iconColor
+        }
+        return .gray
     }
 
     // MARK: - Date Header
@@ -510,15 +564,11 @@ struct HomeView: View {
         return "I'd like to remind you that tomorrow, according to the forecast, there will be no waves. And you haven't been wakesurfing in a while - maybe it's ti..."
     }
 
+    @StateObject private var dashboardAudioService = AudioRecordingService.shared
+    @StateObject private var dashboardVoicePipeline = VoicePipelineManager.shared
+
     private var dashboardChatInput: some View {
         HStack(spacing: 12) {
-            // Attachment button
-            Button(action: {}) {
-                Image(systemName: "paperclip")
-                    .font(.system(size: 20))
-                    .foregroundColor(AzmyColors.textSecondary)
-            }
-
             // Text field
             HStack {
                 TextField("Type your message", text: $dashboardInputText)
@@ -530,13 +580,23 @@ struct HomeView: View {
                         sendFromDashboard()
                     }
 
-                // Send button
-                Button(action: sendFromDashboard) {
-                    Image(systemName: "arrow.up")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(dashboardInputText.isEmpty ? AzmyColors.textTertiary : AzmyColors.accentBlue)
+                // Send OR Voice button
+                if !dashboardInputText.isEmpty {
+                    Button(action: sendFromDashboard) {
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(AzmyColors.accentBlue)
+                    }
+                } else {
+                    // Telegram-style voice button
+                    TelegramVoiceButton(
+                        audioService: dashboardAudioService,
+                        voicePipeline: dashboardVoicePipeline
+                    ) { transcribedText in
+                        dashboardInputText = transcribedText
+                    }
+                    .scaleEffect(0.8)
                 }
-                .disabled(dashboardInputText.isEmpty)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
@@ -582,15 +642,11 @@ struct HomeView: View {
         }
     }
 
+    @StateObject private var chatAudioService = AudioRecordingService.shared
+    @StateObject private var chatVoicePipeline = VoicePipelineManager.shared
+
     private var chatInputBar: some View {
         HStack(spacing: 12) {
-            // Attachment button
-            Button(action: {}) {
-                Image(systemName: "paperclip")
-                    .font(.system(size: 20))
-                    .foregroundColor(AzmyColors.textSecondary)
-            }
-
             // Text field
             HStack {
                 TextField("Type your message", text: $chatViewModel.inputText)
@@ -599,16 +655,27 @@ struct HomeView: View {
                     .foregroundColor(.white)
                     .focused($isInputFocused)
 
-                // Send button
-                Button(action: {
-                    chatViewModel.sendMessage(
-                        profile: userProfile.profile,
-                        calendarEvents: plannerViewModel.events
-                    )
-                }) {
-                    Image(systemName: "arrow.up")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(AzmyColors.accentBlue)
+                // Send OR Voice button
+                if !chatViewModel.inputText.isEmpty {
+                    Button(action: {
+                        chatViewModel.sendMessage(
+                            profile: userProfile.profile,
+                            calendarEvents: plannerViewModel.events
+                        )
+                    }) {
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(AzmyColors.accentBlue)
+                    }
+                } else {
+                    // Telegram-style voice button
+                    TelegramVoiceButton(
+                        audioService: chatAudioService,
+                        voicePipeline: chatVoicePipeline
+                    ) { transcribedText in
+                        chatViewModel.inputText = transcribedText
+                    }
+                    .scaleEffect(0.8)
                 }
             }
             .padding(.horizontal, 16)

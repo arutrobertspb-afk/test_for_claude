@@ -483,7 +483,7 @@ struct QuickPromptChip: View {
     }
 }
 
-// MARK: - Chat Input Bar
+// MARK: - Chat Input Bar (Telegram-style voice)
 struct ChatInputBar: View {
     @Binding var text: String
     let isProcessing: Bool
@@ -493,46 +493,22 @@ struct ChatInputBar: View {
     @StateObject private var audioService = AudioRecordingService.shared
     @StateObject private var voicePipeline = VoicePipelineManager.shared
 
-    @State private var showVoiceRecording = false
-
-    // Can send if text is not empty (processing doesn't block sending - user can queue messages)
+    // Can send if text is not empty
     private var hasText: Bool {
         !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            // Voice recording overlay
-            if showVoiceRecording {
-                VoiceRecordingView(
-                    audioService: audioService,
-                    voicePipeline: voicePipeline,
-                    onComplete: { transcribedText in
-                        if let text = transcribedText {
-                            self.text = text
-                        }
-                        showVoiceRecording = false
-                    },
-                    onCancel: {
-                        audioService.cancelRecording()
-                        showVoiceRecording = false
-                    }
-                )
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+            // Recording overlay (shows when recording)
+            if audioService.isRecording {
+                recordingOverlay
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
 
             HStack(alignment: .bottom, spacing: 12) {
-                // Voice input button (replaces attachment button)
-                Button(action: startVoiceInput) {
-                    Image(systemName: showVoiceRecording ? "waveform.circle.fill" : "mic.circle")
-                        .font(.system(size: 28))
-                        .foregroundColor(showVoiceRecording ? AzmyColors.accentBlue : AzmyColors.textSecondary)
-                        .symbolEffect(.pulse, isActive: showVoiceRecording)
-                }
-                .frame(width: 32, height: 44)
-
-                // Text field - ALWAYS interactive
-                TextField("Type or speak your message", text: $text, axis: .vertical)
+                // Text field
+                TextField("Message", text: $text, axis: .vertical)
                     .textFieldStyle(.plain)
                     .font(AzmyFonts.body())
                     .foregroundColor(AzmyColors.textPrimary)
@@ -544,38 +520,69 @@ struct ChatInputBar: View {
                     .cornerRadius(AzmyRadius.large)
                     .overlay(
                         RoundedRectangle(cornerRadius: AzmyRadius.large)
-                            .stroke(showVoiceRecording ? AzmyColors.accentBlue : AzmyColors.separator, lineWidth: 1)
+                            .stroke(audioService.isRecording ? AzmyColors.accentBlue : AzmyColors.separator, lineWidth: 1)
                     )
 
-                // Send button
-                Button(action: onSend) {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 32))
-                        .foregroundColor(hasText ? AzmyColors.accentBlue : AzmyColors.textTertiary)
+                // Send OR Voice button
+                if hasText {
+                    Button(action: onSend) {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.system(size: 32))
+                            .foregroundColor(AzmyColors.accentBlue)
+                    }
+                } else {
+                    // Telegram-style voice button
+                    TelegramVoiceButton(
+                        audioService: audioService,
+                        voicePipeline: voicePipeline
+                    ) { transcribedText in
+                        self.text = transcribedText
+                    }
                 }
-                .disabled(!hasText)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
             .background(AzmyColors.backgroundPrimary)
         }
-        .animation(.spring(response: 0.3), value: showVoiceRecording)
+        .animation(.spring(response: 0.3), value: audioService.isRecording)
+        .animation(.spring(response: 0.3), value: hasText)
     }
 
-    private func startVoiceInput() {
-        withAnimation {
-            showVoiceRecording.toggle()
-        }
-        if showVoiceRecording {
-            Task {
-                do {
-                    try await audioService.startRecording()
-                } catch {
-                    print("Failed to start recording: \(error)")
-                    showVoiceRecording = false
-                }
+    // Recording overlay with cancel hint
+    private var recordingOverlay: some View {
+        HStack(spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 12))
+                Text("Slide to cancel")
+                    .font(.system(size: 12))
+            }
+            .foregroundColor(AzmyColors.textTertiary)
+
+            Spacer()
+
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(Color.red)
+                    .frame(width: 8, height: 8)
+
+                Text(formatDuration(audioService.recordingDuration))
+                    .font(.system(size: 14, weight: .medium).monospacedDigit())
+                    .foregroundColor(.white)
             }
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(AzmyColors.backgroundCard)
+        .cornerRadius(AzmyRadius.medium)
+        .padding(.horizontal, 16)
+        .padding(.bottom, 4)
+    }
+
+    private func formatDuration(_ duration: TimeInterval) -> String {
+        let minutes = Int(duration) / 60
+        let seconds = Int(duration) % 60
+        return String(format: "%d:%02d", minutes, seconds)
     }
 }
 

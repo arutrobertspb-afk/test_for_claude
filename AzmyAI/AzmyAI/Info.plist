@@ -34,6 +34,10 @@
 	<string>Azmy can save your wellness data to help track your progress.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Azmy needs microphone access to enable voice commands. Speak naturally to control your calendar, ask questions, and interact with your AI assistant hands-free.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Azmy uses your location to show local weather, suggest nearby places, and provide location-aware recommendations.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Azmy uses your location to show local weather, suggest nearby places, and provide location-aware reminders even when the app is in background.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Azmy uses speech recognition to convert your voice into text for processing by the AI assistant.</string>
 	<key>UIApplicationSceneManifest</key>
