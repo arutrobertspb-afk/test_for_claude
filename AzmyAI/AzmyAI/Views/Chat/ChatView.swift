@@ -822,55 +822,80 @@ struct TelegramVoiceButton: View {
     }
 
     private var voiceOnboardingTooltip: some View {
-        VStack(alignment: .trailing, spacing: 8) {
-            HStack(spacing: 12) {
-                ZStack {
-                    Circle()
-                        .fill(AzmyColors.accentBlue.opacity(0.2))
-                        .frame(width: 40, height: 40)
-                        .scaleEffect(pulseAnimation ? 1.3 : 1.0)
+        VStack(spacing: 0) {
+            // Tooltip content
+            VStack(alignment: .leading, spacing: 10) {
+                // Header
+                HStack(spacing: 8) {
                     Image(systemName: "mic.fill")
-                        .font(.system(size: 18))
+                        .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(AzmyColors.accentBlue)
-                }
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Voice Messages")
-                        .font(.system(size: 14, weight: .semibold))
+                    Text("Voice Input")
+                        .font(.system(size: 15, weight: .semibold))
                         .foregroundColor(.white)
-                    Text("Hold to record, release to send")
-                        .font(.system(size: 12))
-                        .foregroundColor(AzmyColors.textSecondary)
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.left")
-                            .font(.system(size: 10))
-                        Text("Slide left to cancel")
-                            .font(.system(size: 11))
-                    }
-                    .foregroundColor(AzmyColors.textTertiary)
                 }
-                Spacer()
+
+                // Instructions
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "hand.tap.fill")
+                            .font(.system(size: 12))
+                            .foregroundColor(AzmyColors.accentBlue)
+                            .frame(width: 20)
+                        Text("Hold to record")
+                            .font(.system(size: 13))
+                            .foregroundColor(AzmyColors.textSecondary)
+                    }
+                    HStack(spacing: 8) {
+                        Image(systemName: "hand.point.up.left.fill")
+                            .font(.system(size: 12))
+                            .foregroundColor(AzmyColors.accentBlue)
+                            .frame(width: 20)
+                        Text("Release to send")
+                            .font(.system(size: 13))
+                            .foregroundColor(AzmyColors.textSecondary)
+                    }
+                    HStack(spacing: 8) {
+                        Image(systemName: "arrow.left")
+                            .font(.system(size: 12))
+                            .foregroundColor(.orange)
+                            .frame(width: 20)
+                        Text("Slide left to cancel")
+                            .font(.system(size: 13))
+                            .foregroundColor(AzmyColors.textTertiary)
+                    }
+                }
+
+                // Got it button
                 Button(action: {
                     withAnimation(.spring(response: 0.3)) {
                         showOnboarding = false
                         onboardingManager.markOnboardingSeen()
                     }
                 }) {
-                    Text("Got it")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(AzmyColors.accentBlue)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(AzmyColors.accentBlue.opacity(0.15))
-                        .cornerRadius(12)
+                    Text("Got it!")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(AzmyColors.accentBlue)
+                        .cornerRadius(10)
                 }
+                .padding(.top, 4)
             }
-            .padding(16)
+            .padding(14)
             .background(AzmyColors.backgroundCard)
-            .cornerRadius(16)
-            .shadow(color: .black.opacity(0.3), radius: 10, x: 0, y: 5)
+            .cornerRadius(14)
+
+            // Arrow pointing to mic button
+            Image(systemName: "arrowtriangle.down.fill")
+                .font(.system(size: 14))
+                .foregroundColor(AzmyColors.backgroundCard)
+                .offset(x: 60, y: -2)
         }
-        .frame(width: 300)
-        .offset(x: -100, y: -90)
+        .frame(width: 200)
+        .offset(x: -80, y: -160)
+        .shadow(color: .black.opacity(0.25), radius: 12, x: 0, y: 6)
         .onAppear {
             withAnimation(.easeInOut(duration: 1).repeatForever(autoreverses: true)) {
                 pulseAnimation = true
@@ -880,6 +905,15 @@ struct TelegramVoiceButton: View {
 
     private var voiceButton: some View {
         ZStack {
+            // Pulse animation when onboarding is showing
+            if showOnboarding {
+                Circle()
+                    .fill(AzmyColors.accentBlue.opacity(0.2))
+                    .frame(width: 56, height: 56)
+                    .scaleEffect(pulseAnimation ? 1.4 : 1.0)
+                    .opacity(pulseAnimation ? 0 : 0.6)
+            }
+
             if isPressed || audioService.isRecording {
                 Circle()
                     .fill(AzmyColors.accentBlue.opacity(0.15))
@@ -894,7 +928,7 @@ struct TelegramVoiceButton: View {
             }
             ZStack {
                 Circle()
-                    .fill(buttonBackgroundColor)
+                    .fill(showOnboarding ? AzmyColors.accentBlue.opacity(0.15) : buttonBackgroundColor)
                     .frame(width: 44, height: 44)
                     .scaleEffect(isPressed ? 1.2 : 1.0)
                 if isProcessing {
@@ -904,7 +938,7 @@ struct TelegramVoiceButton: View {
                 } else {
                     Image(systemName: buttonIcon)
                         .font(.system(size: isPressed ? 22 : 20, weight: .medium))
-                        .foregroundColor(buttonIconColor)
+                        .foregroundColor(showOnboarding ? AzmyColors.accentBlue : buttonIconColor)
                 }
             }
             .offset(x: dragOffset * 0.3)
