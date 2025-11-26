@@ -9,61 +9,10 @@
 import Foundation
 import AVFoundation
 
-// MARK: - Voxtral API Models
+// MARK: - Voxtral Transcription Response
 
-struct VoxtralRequest: Codable {
-    let model: String
-    let messages: [VoxtralMessage]
-}
-
-struct VoxtralMessage: Codable {
-    let role: String
-    let content: [VoxtralContent]
-}
-
-struct VoxtralContent: Codable {
-    let type: String
-    let text: String?
-    let audioUrl: AudioUrl?
-
-    struct AudioUrl: Codable {
-        let url: String
-    }
-
-    enum CodingKeys: String, CodingKey {
-        case type
-        case text
-        case audioUrl = "audio_url"
-    }
-
-    init(type: String, text: String? = nil, audioUrl: AudioUrl? = nil) {
-        self.type = type
-        self.text = text
-        self.audioUrl = audioUrl
-    }
-
-    // Convenience init for audio content
-    static func audio(base64Data: String, mimeType: String = "audio/wav") -> VoxtralContent {
-        let dataUri = "data:\(mimeType);base64,\(base64Data)"
-        return VoxtralContent(type: "audio_url", audioUrl: AudioUrl(url: dataUri))
-    }
-
-    // Convenience init for text content
-    static func text(_ text: String) -> VoxtralContent {
-        return VoxtralContent(type: "text", text: text)
-    }
-}
-
-struct VoxtralResponse: Codable {
-    let choices: [VoxtralChoice]
-}
-
-struct VoxtralChoice: Codable {
-    let message: VoxtralResponseMessage
-}
-
-struct VoxtralResponseMessage: Codable {
-    let content: String
+struct VoxtralTranscriptionResponse: Codable {
+    let text: String
 }
 
 // MARK: - Voice Processing State
@@ -95,10 +44,10 @@ enum VoiceProcessingState: Equatable {
 class VoxtralService: ObservableObject {
     static let shared = VoxtralService()
 
-    // Mistral Voxtral model for audio transcription
+    // Mistral Voxtral transcription endpoint
     private let apiKey: String
-    private let apiURL = "https://api.mistral.ai/v1/chat/completions"
-    private let model = "voxtral-mini-latest" // Voxtral model for audio transcription
+    private let apiURL = "https://api.mistral.ai/v1/audio/transcriptions"
+    private let model = "voxtral-mini-latest"
 
     @Published var state: VoiceProcessingState = .idle
     @Published var rawTranscription: String = ""
@@ -109,58 +58,48 @@ class VoxtralService: ObservableObject {
 
     // MARK: - Transcribe Audio
 
-    /// Converts audio data to raw text transcription
+    /// Converts audio data to raw text transcription using Mistral's dedicated transcription API
     /// - Parameter audioData: WAV audio data
-    /// - Returns: Raw transcribed text (may contain errors, pauses, etc.)
+    /// - Returns: Raw transcribed text
     func transcribeAudio(_ audioData: Data) async -> String? {
         state = .transcribing
 
-        // Convert audio to base64
-        let base64Audio = audioData.base64EncodedString()
-
-        // Build the request with audio content using Mistral's audio_url format
-        let content: [VoxtralContent] = [
-            .audio(base64Data: base64Audio, mimeType: "audio/wav"),
-            .text("Transcribe this audio accurately. Output ONLY the transcription, nothing else. Preserve all words exactly as spoken, including filler words, pauses (as '...'), and any unclear parts (mark as [unclear]). Do not add punctuation or formatting.")
-        ]
-
-        let message = VoxtralMessage(role: "user", content: content)
-        let request = VoxtralRequest(model: model, messages: [message])
-
-        guard let result = await callVoxtralAPI(request) else {
-            state = .error(message: "Failed to transcribe audio")
+        guard let url = URL(string: apiURL) else {
+            state = .error(message: "Invalid API URL")
             return nil
         }
 
-        rawTranscription = result
-        return result
-    }
-
-    /// Transcribe audio from a file URL
-    func transcribeAudioFile(at url: URL) async -> String? {
-        guard let audioData = try? Data(contentsOf: url) else {
-            state = .error(message: "Failed to read audio file")
-            return nil
-        }
-        return await transcribeAudio(audioData)
-    }
-
-    // MARK: - API Call
-
-    private func callVoxtralAPI(_ voxtralRequest: VoxtralRequest) async -> String? {
-        guard let url = URL(string: apiURL) else { return nil }
-
+        // Create multipart form data request
+        let boundary = UUID().uuidString
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 60 // Audio processing may take time
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 120 // Audio processing may take time
+
+        // Build multipart body
+        var body = Data()
+
+        // Add model field
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"model\"\r\n\r\n".data(using: .utf8)!)
+        body.append("\(model)\r\n".data(using: .utf8)!)
+
+        // Add audio file
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"audio.wav\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: audio/wav\r\n\r\n".data(using: .utf8)!)
+        body.append(audioData)
+        body.append("\r\n".data(using: .utf8)!)
+
+        // Close boundary
+        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
+
+        request.httpBody = body
 
         do {
-            let jsonData = try JSONEncoder().encode(voxtralRequest)
-            request.httpBody = jsonData
-
-            print("[Voxtral] Sending audio transcription request...")
+            print("[Voxtral] Sending audio transcription request to \(apiURL)...")
+            print("[Voxtral] Audio size: \(audioData.count) bytes")
 
             let (data, response) = try await URLSession.shared.data(for: request)
 
@@ -171,21 +110,34 @@ class VoxtralService: ObservableObject {
                     if let errorString = String(data: data, encoding: .utf8) {
                         print("[Voxtral] Error: \(errorString)")
                     }
+                    state = .error(message: "API returned status \(httpResponse.statusCode)")
                     return nil
                 }
             }
 
-            let voxtralResponse = try JSONDecoder().decode(VoxtralResponse.self, from: data)
-            let transcription = voxtralResponse.choices.first?.message.content ?? ""
+            // Parse response
+            let transcriptionResponse = try JSONDecoder().decode(VoxtralTranscriptionResponse.self, from: data)
+            let transcription = transcriptionResponse.text
 
             print("[Voxtral] Transcription received: \(transcription.prefix(100))...")
 
+            rawTranscription = transcription
             return transcription
 
         } catch {
             print("[Voxtral] API Error: \(error)")
+            state = .error(message: "Transcription failed: \(error.localizedDescription)")
             return nil
         }
+    }
+
+    /// Transcribe audio from a file URL
+    func transcribeAudioFile(at url: URL) async -> String? {
+        guard let audioData = try? Data(contentsOf: url) else {
+            state = .error(message: "Failed to read audio file")
+            return nil
+        }
+        return await transcribeAudio(audioData)
     }
 
     // MARK: - Reset
