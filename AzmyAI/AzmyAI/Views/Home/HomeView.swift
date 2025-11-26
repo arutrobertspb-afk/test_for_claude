@@ -3,6 +3,7 @@
 //  AzmyAI
 //
 //  Main home screen with dashboard cards and expandable chat
+//  TikTok-style vertical swipe between dashboard and chat
 //
 
 import SwiftUI
@@ -12,51 +13,142 @@ struct HomeView: View {
     @EnvironmentObject var userProfile: UserProfileViewModel
     @EnvironmentObject var plannerViewModel: PlannerViewModel
 
-    @State private var showExpandedChat = false
+    @State private var currentPage: Int = 0  // 0 = dashboard, 1 = chat
     @State private var currentCardPage = 0
     @State private var dragOffset: CGFloat = 0
     @FocusState private var isInputFocused: Bool
 
     var body: some View {
-        ZStack {
-            AzmyColors.backgroundPrimary
-                .ignoresSafeArea()
+        GeometryReader { geometry in
+            ZStack {
+                AzmyColors.backgroundPrimary
+                    .ignoresSafeArea()
 
-            VStack(spacing: 0) {
-                // Main content (collapsible when chat expanded)
-                if !showExpandedChat {
-                    dashboardContent
-                        .transition(.move(edge: .top).combined(with: .opacity))
+                VStack(spacing: 0) {
+                    // Page 0: Dashboard
+                    dashboardPage(height: geometry.size.height)
+                        .frame(height: geometry.size.height)
+
+                    // Page 1: Full Chat
+                    fullChatPage(height: geometry.size.height)
+                        .frame(height: geometry.size.height)
                 }
+                .offset(y: -CGFloat(currentPage) * geometry.size.height + dragOffset)
+                .animation(.spring(response: 0.4, dampingFraction: 0.85), value: currentPage)
+                .animation(.interactiveSpring(), value: dragOffset)
+                .gesture(
+                    DragGesture()
+                        .onChanged { value in
+                            let translation = value.translation.height
+                            // Limit drag based on current page
+                            if currentPage == 0 {
+                                // On dashboard, only allow drag up (negative)
+                                if translation < 0 {
+                                    dragOffset = translation * 0.5
+                                }
+                            } else {
+                                // On chat, only allow drag down (positive)
+                                if translation > 0 {
+                                    dragOffset = translation * 0.5
+                                }
+                            }
+                        }
+                        .onEnded { value in
+                            let velocity = value.predictedEndTranslation.height - value.translation.height
+                            let threshold: CGFloat = 80
 
-                // Chat section
-                chatSection
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                                if currentPage == 0 {
+                                    // Swipe up to go to chat
+                                    if value.translation.height < -threshold || velocity < -100 {
+                                        currentPage = 1
+                                    }
+                                } else {
+                                    // Swipe down to go back to dashboard
+                                    if value.translation.height > threshold || velocity > 100 {
+                                        currentPage = 0
+                                    }
+                                }
+                                dragOffset = 0
+                            }
+                        }
+                )
             }
-            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: showExpandedChat)
         }
-        .gesture(
-            DragGesture()
-                .onChanged { value in
-                    if value.translation.height > 0 && !showExpandedChat {
-                        dragOffset = value.translation.height
-                    } else if value.translation.height < 0 && showExpandedChat {
-                        dragOffset = value.translation.height
-                    }
-                }
-                .onEnded { value in
-                    if value.translation.height > 100 && !showExpandedChat {
-                        showExpandedChat = true
-                    } else if value.translation.height < -100 && showExpandedChat {
-                        showExpandedChat = false
-                    }
-                    dragOffset = 0
-                }
-        )
+        .ignoresSafeArea(.keyboard)
         .onAppear {
             Task {
                 await plannerViewModel.fetchEventsForMonth(Date())
             }
         }
+    }
+
+    // MARK: - Dashboard Page (Page 0)
+    private func dashboardPage(height: CGFloat) -> some View {
+        VStack(spacing: 0) {
+            dashboardContent
+
+            Spacer()
+
+            // Swipe up hint
+            VStack(spacing: 4) {
+                Image(systemName: "chevron.up")
+                    .font(.system(size: 14, weight: .medium))
+                Text("Swipe up for chat")
+                    .font(.system(size: 12))
+            }
+            .foregroundColor(AzmyColors.textTertiary)
+            .padding(.bottom, 16)
+        }
+        .frame(maxHeight: .infinity)
+    }
+
+    // MARK: - Full Chat Page (Page 1)
+    private func fullChatPage(height: CGFloat) -> some View {
+        VStack(spacing: 0) {
+            // Swipe down hint
+            VStack(spacing: 4) {
+                Text("Swipe down for dashboard")
+                    .font(.system(size: 12))
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 14, weight: .medium))
+            }
+            .foregroundColor(AzmyColors.textTertiary)
+            .padding(.top, 50)
+            .padding(.bottom, 8)
+
+            // Chat header
+            HStack {
+                Circle()
+                    .fill(AzmyColors.gradientBlue)
+                    .frame(width: 40, height: 40)
+                    .overlay(
+                        Image(systemName: "sparkles")
+                            .foregroundColor(.white)
+                    )
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Azmy AI")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+                    Text("Your personal assistant")
+                        .font(.system(size: 12))
+                        .foregroundColor(AzmyColors.textSecondary)
+                }
+
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 12)
+
+            // Chat messages
+            expandedChatView
+
+            // Input bar
+            chatInputBar
+        }
+        .frame(maxHeight: .infinity)
+        .background(AzmyColors.backgroundPrimary)
     }
 
     // MARK: - Dashboard Content
@@ -262,77 +354,6 @@ struct HomeView: View {
                     .frame(width: 6, height: 6)
             }
         }
-    }
-
-    // MARK: - Chat Section
-    private var chatSection: some View {
-        VStack(spacing: 0) {
-            // Chat Handle
-            if !showExpandedChat {
-                chatHandle
-            }
-
-            // Chat Messages
-            if showExpandedChat {
-                expandedChatView
-            } else {
-                collapsedChatView
-            }
-
-            // Input Bar
-            chatInputBar
-        }
-        .background(AzmyColors.backgroundPrimary)
-    }
-
-    private var chatHandle: some View {
-        VStack(spacing: 8) {
-            // Timestamp pill
-            HStack {
-                Text("yesterday, 08:32 AM")
-                    .font(.system(size: 12))
-                    .foregroundColor(AzmyColors.textSecondary)
-                Image(systemName: "chevron.up")
-                    .font(.system(size: 10))
-                    .foregroundColor(AzmyColors.textSecondary)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(AzmyColors.backgroundCard)
-            .cornerRadius(16)
-        }
-        .padding(.vertical, 8)
-        .onTapGesture {
-            withAnimation {
-                showExpandedChat = true
-            }
-        }
-    }
-
-    private var collapsedChatView: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Good morning, \(userProfile.profile.name.isEmpty ? "there" : userProfile.profile.name.components(separatedBy: " ").first ?? "there").")
-                .font(.system(size: 18, weight: .bold))
-                .foregroundColor(.white)
-
-            Text("I'd like to remind you that tomorrow, according to the forecast, there will be no waves. And you haven't been wakesurfing in a while - maybe it's ti...")
-                .font(.system(size: 14))
-                .foregroundColor(AzmyColors.textSecondary)
-                .lineLimit(2)
-
-            // Avatar
-            HStack {
-                Spacer()
-                Circle()
-                    .fill(AzmyColors.gradientBlue)
-                    .frame(width: 48, height: 48)
-                    .overlay(
-                        Image(systemName: "sparkles")
-                            .foregroundColor(.white)
-                    )
-            }
-        }
-        .padding(16)
     }
 
     private var expandedChatView: some View {
