@@ -48,7 +48,7 @@ struct MainTabView: View {
                 .ignoresSafeArea()
 
             TabView(selection: $appState.selectedTab) {
-                ChatView()
+                HomeView()
                     .tabItem {
                         Label(TabSelection.chat.title, systemImage: TabSelection.chat.icon)
                     }
@@ -66,11 +66,11 @@ struct MainTabView: View {
                     }
                     .tag(TabSelection.insights)
 
-                PlannerView()
+                StatisticsView()
                     .tabItem {
-                        Label(TabSelection.planner.title, systemImage: TabSelection.planner.icon)
+                        Label(TabSelection.statistic.title, systemImage: TabSelection.statistic.icon)
                     }
-                    .tag(TabSelection.planner)
+                    .tag(TabSelection.statistic)
 
                 ProfileView()
                     .tabItem {

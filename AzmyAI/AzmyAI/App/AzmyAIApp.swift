@@ -46,7 +46,7 @@ enum TabSelection: Int, CaseIterable {
     case chat = 0
     case calendar = 1
     case insights = 2
-    case planner = 3
+    case statistic = 3
     case profile = 4
 
     var title: String {
@@ -54,7 +54,7 @@ enum TabSelection: Int, CaseIterable {
         case .chat: return "Home"
         case .calendar: return "Calendar"
         case .insights: return "Insights"
-        case .planner: return "Planner"
+        case .statistic: return "Statistic"
         case .profile: return "Profile"
         }
     }
@@ -64,7 +64,7 @@ enum TabSelection: Int, CaseIterable {
         case .chat: return "house.fill"
         case .calendar: return "calendar"
         case .insights: return "lightbulb.fill"
-        case .planner: return "clock.fill"
+        case .statistic: return "clock.fill"
         case .profile: return "person.circle.fill"
         }
     }
