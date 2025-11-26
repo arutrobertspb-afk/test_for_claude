@@ -165,6 +165,14 @@ class VoicePipelineManager: ObservableObject {
     @Published var rawTranscription: String = ""
     @Published var processingStep: String = ""
 
+    // Computed property for UI
+    var isProcessing: Bool {
+        if case .processing = state {
+            return true
+        }
+        return false
+    }
+
     enum VoicePipelineState {
         case idle
         case recording
